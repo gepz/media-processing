@@ -1,0 +1,4 @@
+[lint]
+# Disable fix for unused imports (`F401`).
+ignore = ["E402"]
+unfixable = ["F401"]
