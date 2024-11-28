@@ -12,14 +12,14 @@ class BaseArgs:
     output_file: str
 
 
-class MainArgs(Tap, BaseArgs):
+class MainArgs(Tap):
     input_path: str  # Path to input file
     output_dir: str  # Directory for output files
     output_file: str = "output.md"  # Name of output file
 
 
 main_args = BaseArgs(
-    input_path="test/fixture/main.pdf",
+    input_path="test/fixture/scientific_article_example.pdf",
     output_dir="test/output",
     output_file="output.md",
 )
@@ -32,7 +32,7 @@ from docling.document_converter import DocumentConverter
 
 
 # %%
-def convert_pdf_to_markdown(args: BaseArgs):
+def convert_pdf_to_markdown(args: BaseArgs | MainArgs):
     output_path = Path(args.output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
     converter = DocumentConverter()
