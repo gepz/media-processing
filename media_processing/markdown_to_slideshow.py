@@ -1,4 +1,5 @@
 # %%
+import re
 import sys
 from dataclasses import dataclass
 
@@ -33,9 +34,10 @@ from typing import Sequence
 
 from chonkie import SDPMChunker
 from llama_index.core import SimpleDirectoryReader
+from llama_index.core.chat_engine import SimpleChatEngine
 from llama_index.core.llms import ChatMessage, MessageRole
 from llama_index.core.node_parser import SentenceSplitter
-from llama_index.core.schema import BaseNode, Document, TextNode
+from llama_index.core.schema import Document
 from llama_index.core.workflow import (
     Context,
     Event,
@@ -52,84 +54,171 @@ from llama_index.utils.workflow import (
 )
 from rapidfuzz import fuzz
 
-# from media_processing import event_logging
+from media_processing import event_logging
 
-# event_logging.start()
+event_logging.start()
 
 
 # %%
-def non_empty_stripped_texts(documents: Sequence[Document]) -> list[str]:
-    return [
-        stripped
-        for doc in documents
-        for stripped in [doc.text.strip()]
-        if len(stripped) > 0
-    ]
-
-
-input_documents = SimpleDirectoryReader(input_files=[main_args.input_path]).load_data()
-example_documents = SimpleDirectoryReader(
-    input_files=[
-        "test/fixture/markdown_to_slideshow/source_scientific_article_example.md"
-    ]
-).load_data()
-non_empty_texts = non_empty_stripped_texts(input_documents)
-non_empty_example_texts = non_empty_stripped_texts(input_documents)
-
-
 @dataclass
 class Section:
     level: int
     title: str | None
     content: str
 
+    @classmethod
+    def from_text(cls, text: str) -> "Section":
+        lines = text.split("\n\n", 1)
+        title = lines[0]
+        content = lines[1] if len(lines) > 1 else ""
 
-def parse_text_block(text: str) -> Section:
-    lines = text.split("\n\r\n", 1)
-    title = lines[0]
-    content = lines[1] if len(lines) > 1 else ""
-    match title.split():
-        case []:
-            level, clean_title = 1, title
-        case [first, *rest] if any(char.isdigit() for char in first):
-            level, clean_title = first.count(".") + 1, " ".join(rest)
-        case _:
-            level, clean_title = 1, title.strip()
+        match title.split():
+            case []:
+                level, clean_title = 1, title
+            case [first, *rest] if any(char.isdigit() for char in first):
+                level, clean_title = first.count(".") + 1, " ".join(rest)
+            case _:
+                level, clean_title = 1, title.strip()
 
-    return Section(level=level, title=clean_title, content=content)
+        return cls(level=level, title=clean_title, content=content)
+
+    @classmethod
+    def from_documents(cls, docs: Sequence[Document]) -> "list[Section]":
+        texts = [
+            cleaned
+            for doc in docs
+            for cleaned in [
+                re.sub(r"\n{3,}", "\n\n", re.sub("\r\n", "\n", doc.text.strip()))
+            ]
+            if len(cleaned) > 0
+        ]
+        return [Section.from_text(text) for text in texts]
 
 
-sections = [parse_text_block(text) for text in non_empty_texts]
+@dataclass
+class ResearchArticle:
+    primary_sections: list[Section]
+    supportive_sections: list[Section]
 
-primary_blocks: list[Section] = []
-supportive_blocks: list[Section] = []
+    @classmethod
+    def from_sections(cls, sections: list[Section]) -> "ResearchArticle":
+        SUPPORTIVE_MATERIAL_KEYWORDS = [
+            "ccs concepts",
+            "keywords",
+            "references",
+            "acknowledgments",
+        ]
 
-METADATA_KEYWORDS = ["ccs concepts", "keywords", "references", "acknowledgments"]
+        primary = []
+        supportive = []
 
-for section in sections:
-    similarity_threshold = 80
-    if any(
-        fuzz.partial_ratio(
-            keyword.lower(), section.title.lower() if section.title else ""
-        )
-        >= similarity_threshold
-        for keyword in METADATA_KEYWORDS
-    ):
-        supportive_blocks.append(section)
-    else:
-        primary_blocks.append(section)
+        for section in sections:
+            if any(
+                fuzz.partial_ratio(
+                    keyword.lower(), section.title.lower() if section.title else ""
+                )
+                >= 80
+                for keyword in SUPPORTIVE_MATERIAL_KEYWORDS
+            ):
+                supportive.append(section)
+            else:
+                primary.append(section)
+
+        return cls(primary_sections=primary, supportive_sections=supportive)
+
+
+article = ResearchArticle.from_sections(
+    Section.from_documents(
+        SimpleDirectoryReader(input_files=[main_args.input_path]).load_data()
+    )
+)
+example_article = ResearchArticle.from_sections(
+    Section.from_documents(
+        SimpleDirectoryReader(
+            input_files=[
+                "test/fixture/markdown_to_slideshow/source_scientific_article_example.md"
+            ]
+        ).load_data()
+    )
+)
+
 
 # %%
+def triple_quote(content: str) -> str:
+    return f'"""\n{content}\n"""'
+
+
+def create_conversion_prompt(example_text: str, example_slide: str, text: str) -> str:
+    return (
+        "I have the following academic text:\n"
+        f"{triple_quote(example_text)}\n"
+        "For reference, here's how it was converted into slide format:\n"
+        f"{triple_quote(example_slide)}\n"
+        "Please convert the following academic text into a concise, high-level overview using a similar format. The slide content should be brief, and the speaker notes should reference the slide content without adding introductory or concluding remarks.\n"
+        f"{triple_quote(text)}\n"
+    )
+
+
 splitter = SentenceSplitter()
-
-# %%
 llm = OpenRouter(
-    max_tokens=1048,
+    max_tokens=1920,
     context_window=16384,
     model="meta-llama/llama-3.1-8b-instruct",
 )
 
+llm_smart = OpenRouter(
+    max_tokens=1920,
+    context_window=16384,
+    model="neversleep/llama-3.1-lumimaid-70b",
+)
 
+llm_smartest = OpenRouter(
+    max_tokens=1920,
+    context_window=16384,
+    model="anthropic/claude-3.5-sonnet",
+)
+
+
+overview_request = ChatMessage(
+    role=MessageRole.USER,
+    content=create_conversion_prompt(
+        "\n\n".join(
+            f"# {s.title}\n\n{s.content}" for s in example_article.primary_sections[:2]
+        ),
+        """
+# Overview
+
+- Investigates "similarity effect" in VR environments
+  - People are more influenced by similar others
+- Examines impact of avatar appearance similarity on:
+  - User comfort
+  - Perceived persuasiveness
+- Combine quantitative and qualitative data from 25 participants
+
+<!--
+This study explores how the "similarity effect" - our tendency to be influenced by those who resemble us - manifests in VR communication. It specifically examines how varying degrees of avatar similarity affect users' comfort and perception of others' persuasiveness. The research uses a mixed-methods approach, combining quantitative and qualitative data from 25 participants interacting with avatars of three similarity levels. This work may help understanding social dynamics in VR and has implications for designing effective VR communication platforms.
+-->
+    """,
+        "\n\n".join(
+            f"# {s.title}\n\n{s.content}" for s in article.primary_sections[:2]
+        ),
+    ),
+)
+chat_engine = SimpleChatEngine.from_defaults(
+    llm=llm_smartest,
+    system_prompt="Write the next reply in the conversation. Use markdown for formatting when appropriate. Be concise yet helpful. Offer direct answers when possible. Ask questions if needed. Explain complex concepts with brief examples. Avoid repetition and strive to add value with each response.",
+)
+overview_response = chat_engine.chat(overview_request)
+print(overview_response.message.content)
+slide_1_request = ChatMessage(
+    role=MessageRole.USER,
+    content="Continue to write the next slide.",
+)
+slide_1_response = chat_engine.chat(slide_1_request)
+print(slide_1_response.message.content)
+
+
+# %%
 class SlideCreateEvent(Event):
     index: int
     section: Section
@@ -187,27 +276,9 @@ workflow = SlideShowWorkflow(timeout=60)
 # draw_all_possible_flows(workflow)
 
 
-def triple_quote(content: str) -> str:
-    return f'"""\n{content}\n"""'
-
-
-def create_conversion_prompt(example_text: str, example_slide: str, text: str) -> str:
-    return (
-        "I have the following academic text:\n"
-        f"{triple_quote(example_text)}"
-        "For reference, here's how it was converted into slide format:"
-        f"{triple_quote(example_slide)}"
-        "Please convert the following academic text into a concise, high-level overview using a similar format. The slide content should be brief, and the speaker notes should reference the slide content without adding concluding remarks.\n"
-        f"{triple_quote(text)}"
-    )
-
-
-prompt = create_conversion_prompt("", "", "")
-
-
 async def main(args: BaseArgs):
     global slides
-    slides = await workflow.run(sections=primary_blocks)
+    slides = await workflow.run(sections=primary_sections)
     # draw_most_recent_execution(workflow)
     output_path = Path(args.output_dir)
     output_path.mkdir(parents=True, exist_ok=True)

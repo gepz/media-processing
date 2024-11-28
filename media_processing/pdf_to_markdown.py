@@ -26,9 +26,11 @@ main_args = BaseArgs(
 if __name__ == "__main__" and "ipykernel" not in sys.modules:
     main_args = MainArgs().parse_args()
 
+import re
 from pathlib import Path
 
 from docling.document_converter import DocumentConverter
+from docling_core.types.doc.base import ImageRefMode
 
 
 # %%
@@ -37,7 +39,11 @@ def convert_pdf_to_markdown(args: BaseArgs | MainArgs):
     output_path.mkdir(parents=True, exist_ok=True)
     converter = DocumentConverter()
     result = converter.convert(args.input_path)
-    full_text = result.document.export_to_markdown()
+    full_text = re.sub(
+        "\r\n",
+        "\n",
+        result.document.export_to_markdown(image_mode=ImageRefMode.EMBEDDED),
+    )
 
     with open(output_path / args.output_file, "w", encoding="utf-8") as f:
         f.write(full_text)
