@@ -6,23 +6,23 @@ from dataclasses import dataclass
 from tap import Tap
 
 
-@dataclass
+@dataclass(frozen=True)
 class BaseArgs:
-    input_path: str
-    output_dir: str
-    output_file: str
+    in_path: str
+    out_dir: str
+    out_file: str
 
 
 class MainArgs(Tap, BaseArgs):
-    input_path: str  # Path to input file
-    output_dir: str  # Directory for output files
-    output_file: str = "output.md"  # Name of output file
+    in_path: str  # Path to input file
+    out_dir: str  # Directory for output files
+    out_file: str = "output.md"  # Name of output file
 
 
 main_args = BaseArgs(
-    input_path="test/fixture/scientific_article_example.md",
-    output_dir="test/output",
-    output_file="output.md",
+    in_path="test/fixture/scientific_article_example.md",
+    out_dir="test/output",
+    out_file="output.md",
 )
 if __name__ == "__main__" and "ipykernel" not in sys.modules:
     main_args = MainArgs().parse_args()
@@ -60,7 +60,7 @@ event_logging.start()
 
 
 # %%
-@dataclass
+@dataclass(frozen=True)
 class Section:
     level: int
     title: str | None
@@ -95,7 +95,7 @@ class Section:
         return [Section.from_text(text) for text in texts]
 
 
-@dataclass
+@dataclass(frozen=True)
 class ResearchArticle:
     primary_sections: list[Section]
     supportive_sections: list[Section]
@@ -129,7 +129,7 @@ class ResearchArticle:
 
 article = ResearchArticle.from_sections(
     Section.from_documents(
-        SimpleDirectoryReader(input_files=[main_args.input_path]).load_data()
+        SimpleDirectoryReader(input_files=[main_args.in_path]).load_data()
     )
 )
 example_article = ResearchArticle.from_sections(
@@ -280,11 +280,11 @@ async def main(args: BaseArgs):
     global slides
     slides = await workflow.run(sections=primary_sections)
     # draw_most_recent_execution(workflow)
-    output_path = Path(args.output_dir)
+    output_path = Path(args.out_dir)
     output_path.mkdir(parents=True, exist_ok=True)
     full_text = f"\n{"-" * 10}\n".join(x for x in slides)
 
-    with open(output_path / args.output_file, "w", encoding="utf-8") as f:
+    with open(output_path / args.out_file, "w", encoding="utf-8") as f:
         f.write(full_text)
 
 
