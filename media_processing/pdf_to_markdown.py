@@ -19,7 +19,7 @@ class MainArgs(Tap):
 
 
 main_args = BaseArgs(
-    in_path="test/fixture/scientific_article_example.pdf",
+    in_path="test/fixture/scientific_article_1.pdf",
     out_dir="test/output",
     out_file="output.md",
 )
@@ -42,7 +42,7 @@ def convert_pdf_to_markdown(args: BaseArgs | MainArgs):
     full_text = re.sub(
         "\r\n",
         "\n",
-        result.document.export_to_markdown(image_mode=ImageRefMode.EMBEDDED),
+        result.document.export_to_markdown(image_mode=ImageRefMode.REFERENCED),
     )
 
     with open(output_path / args.out_file, "w", encoding="utf-8") as f:
@@ -51,3 +51,5 @@ def convert_pdf_to_markdown(args: BaseArgs | MainArgs):
 
 if __name__ == "__main__":
     convert_pdf_to_markdown(main_args)
+
+# %%

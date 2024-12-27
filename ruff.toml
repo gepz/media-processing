@@ -1,4 +1,5 @@
 [lint]
-# Disable fix for unused imports (`F401`).
 ignore = ["E402"]
+# Disable fix for unused imports (`F401`).
 unfixable = ["F401"]
+select = ["E4", "E7", "E9", "F", "A", "B"]
