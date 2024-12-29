@@ -5,6 +5,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import StrEnum
 
+import regex
+from pydantic import BaseModel
 from tap import Tap
 
 
@@ -25,7 +27,7 @@ class MainArgs(Tap, BaseArgs):
     example_overview_slide_path: str  # Path to example slide format
 
 
-main_args = BaseArgs(
+g_main_args = BaseArgs(
     input_path="test/fixture/scientific_article_markdown_2.md",
     example_source_path="test/fixture/scientific_article_markdown_1.md",
     example_overview_slide_path="test/fixture/markdown_to_slideshow/scientific_article_1_overview_slide.md",
@@ -33,19 +35,19 @@ main_args = BaseArgs(
     output_filename="output.md",
 )
 if __name__ == "__main__" and "ipykernel" not in sys.modules:
-    main_args = MainArgs().parse_args()
+    g_main_args = MainArgs().parse_args()
 
 
 import asyncio
 import os
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Sequence, cast
 
 from chonkie import SDPMChunker
 from llama_index.core import SimpleDirectoryReader
 from llama_index.core.chat_engine import SimpleChatEngine
 from llama_index.core.chat_engine.types import AgentChatResponse
-from llama_index.core.llms import ChatMessage, MessageRole
+from llama_index.core.llms import LLM, ChatMessage, ChatResponse, MessageRole
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.schema import Document
 from llama_index.core.workflow import (
@@ -117,6 +119,9 @@ class Section:
             >= 80
         )
 
+    def to_markdown(self) -> str:
+        return f"# {self.title}\n\n{self.content}"
+
 
 def sections_from_documents(docs: Sequence[Document]) -> "list[Section]":
     return [
@@ -130,7 +135,7 @@ def sections_from_documents(docs: Sequence[Document]) -> "list[Section]":
 
 
 def markdown_from_sections(sections: "Iterable[Section]") -> str:
-    return "\n\n".join(f"# {s.title}\n\n{s.content}" for s in sections)
+    return "\n\n".join(s.to_markdown() for s in sections)
 
 
 @dataclass(frozen=True)
@@ -182,14 +187,14 @@ def get_sections_until_threshold(
     return sections
 
 
-article = ResearchArticle.from_sections(
+g_article = ResearchArticle.from_sections(
     sections_from_documents(
-        SimpleDirectoryReader(input_files=[main_args.input_path]).load_data()
+        SimpleDirectoryReader(input_files=[g_main_args.input_path]).load_data()
     )
 )
-example_article = ResearchArticle.from_sections(
+g_example_article = ResearchArticle.from_sections(
     sections_from_documents(
-        SimpleDirectoryReader(input_files=[main_args.example_source_path]).load_data()
+        SimpleDirectoryReader(input_files=[g_main_args.example_source_path]).load_data()
     )
 )
 
@@ -199,94 +204,176 @@ def triple_quote(content: str) -> str:
     return f'"""\n{content}\n"""'
 
 
-def overview_request_prompt(example_text: str, example_slide: str, text: str) -> str:
-    return (
-        "I have the following academic text:\n"
-        f"{triple_quote(example_text)}\n"
-        "For reference, here's how it was converted into slide format:\n"
-        f"{triple_quote(example_slide)}\n"
-        "Please convert the following academic text into a concise, high-level overview using a similar format. The slide content should be brief, and the speaker notes should reference the slide content without adding introductory or concluding remarks.\n"
-        f"{triple_quote(text)}\n"
-    )
-
-
 def source_context_prompt(text: str) -> str:
     return f"I have the following academic text:\n{triple_quote(text)}"
+
+
+def overview_request_prompt(example_text: str, example_slide: str, text: str) -> str:
+    return (
+        f"{source_context_prompt(example_text)}\n"
+        "For reference, here's how it was converted into slide format:\n"
+        f"{triple_quote(example_slide)}\n"
+        "Please convert the following academic text into a concise, high-level overview using a similar format. The slide content should be brief, and the speaker notes should reference the slide content without adding introductory or concluding remarks. Stop output after the JSON.\n"
+        f"{triple_quote(text)}"
+    )
 
 
 def slide_context_prompt(current_slides: str) -> str:
     return f"These are the current slides:\n{triple_quote(current_slides)}"
 
 
-splitter = SentenceSplitter()
-api_key = os.environ["OPENROUTER_API_KEY"]
-llm = OpenRouter(
-    max_tokens=1920,
-    context_window=16384,
-    model="meta-llama/llama-3.1-8b-instruct",
-    # api_base="https://openrouter.ai/api/v1",
-    # api_key=api_key,
-    # api_version="v1",
-)
+class SlideReferenceStatus(BaseModel):
+    start: str
+    end: str
+    isComplete: bool
 
-llm_smart = OpenRouter(
+
+class JsonObjectString(str):
+    pass
+
+
+def extract_segments(text: str) -> list[str | JsonObjectString]:
+    json_object_pattern = r"{(?:[^{}]|(?R))*}"
+    segments: list[str | JsonObjectString] = []
+    last_end = 0
+
+    for match in regex.finditer(json_object_pattern, text):
+        substr = text[last_end : match.start()]
+        if len(substr) > 0:
+            segments.append(substr)
+        segments.append(JsonObjectString(match.group()))
+        last_end = match.end()
+
+    if last_end < len(text):
+        segments.append(text[last_end:].strip())
+
+    return segments
+
+
+g_splitter = SentenceSplitter()
+g_api_key = os.environ["OPENROUTER_API_KEY"]
+g_llm_smart = OpenRouter(
     max_tokens=1920,
     context_window=16384,
     model="neversleep/llama-3.1-lumimaid-70b",
     # api_base="https://openrouter.ai/api/v1",
     # api_key=api_key,
     # api_version="v1",
+    temperature=0.08,
 )
 
-llm_smartest = OpenAILike(
+g_llm_smartest = OpenAILike(
     max_tokens=1920,
     context_window=16384,
     model="anthropic/claude-3.5-sonnet",
     api_base="https://openrouter.ai/api/v1",
-    api_key=api_key,
+    api_key=g_api_key,
     api_version="v1",
     temperature=0.08,
 )
 
-system_prompt = ChatMessage(
+
+with open(g_main_args.example_overview_slide_path, encoding="utf-8") as f:
+    g_example_slide = f.read()
+
+
+def get_response_content(res: ChatResponse):
+    for choice in cast(Any, res.raw).choices:
+        if hasattr(choice, "error"):
+            raise ValueError(f"Error: {choice.error}")
+    if res.message.content is None:
+        raise ValueError("message is None")
+    return res.message.content
+
+
+def get_status(res_content: str):
+    return SlideReferenceStatus.model_validate_json(
+        next(
+            s for s in extract_segments(res_content) if isinstance(s, JsonObjectString)
+        )
+    )
+
+
+@dataclass(frozen=True)
+class SlideResponse:
+    message: ChatMessage
+    content: str
+    reference_status: SlideReferenceStatus
+
+    @classmethod
+    def from_chat_response(cls, res: ChatResponse) -> "SlideResponse":
+        content = get_response_content(res)
+        return cls(
+            message=res.message, content=content, reference_status=get_status(content)
+        )
+
+
+g_system_prompt = ChatMessage(
     role=MessageRole.SYSTEM,
     content="Write the next reply in the conversation. Use markdown for formatting when appropriate. Be concise yet helpful. Offer direct answers when possible. Ask questions if needed. Explain complex concepts with brief examples. Avoid repetition and strive to add value with each response.",
 )
-with open(main_args.example_overview_slide_path, encoding="utf-8") as f:
-    example_slide = f.read()
 
-overview_request = ChatMessage(
+
+def next_slide(
+    llm: LLM,
+    prior_chat_context: Sequence[ChatMessage],
+    overview_slide_response: SlideResponse,
+    next_section_index: int,
+) -> SlideResponse:
+    source_context = source_context_prompt(
+        markdown_from_sections(
+            get_sections_until_threshold(
+                g_article.primary_sections[next_section_index:], 2000, 750
+            )
+        )
+    )
+    slide_context = slide_context_prompt(overview_slide_response.content)
+    next_slide_prompt = """
+    Write the single next slide. The slide content should be brief. The speaker notes should reference the slide content, not the slide itself, without adding introductory or concluding remarks. At the end of the speaker notes, write down:
+    1. The start and end of the range of text referenced (in JSON format)
+    2. A boolean indicating if this is basically the last available meaningful text to reference
+
+    JSON Format:
+    {
+        "start": "Start of a sentence...",
+        "end": "...end of a sentence.",
+        "isComplete": true/false
+    }
+    Stop output after the JSON.
+    Following the text in chronological order. Do not skip any part.
+    """
+
+    chat_context = [
+        *prior_chat_context,
+        overview_slide_response.message,
+        ChatMessage(role=MessageRole.USER, content=source_context),
+        ChatMessage(role=MessageRole.USER, content=slide_context),
+        ChatMessage(role=MessageRole.USER, content=next_slide_prompt),
+    ]
+    return SlideResponse.from_chat_response(llm.chat(chat_context))
+
+
+g_overview_request = ChatMessage(
     role=MessageRole.USER,
     content=overview_request_prompt(
-        markdown_from_sections(example_article.get_primary_opening_sections()),
-        example_slide,
-        markdown_from_sections(article.get_primary_opening_sections()),
+        markdown_from_sections(g_example_article.get_primary_opening_sections()),
+        g_example_slide,
+        markdown_from_sections(g_article.get_primary_opening_sections()),
     ),
 )
-chat_context = [system_prompt, overview_request]
-overview_response = llm_smartest.chat(chat_context)
-next_slide_prompt = """
-Write the next slide. The slide content should be brief. The speaker notes should reference the slide content, not the slide itself, without adding introductory or concluding remarks. At the end of the speaker notes, write down:
-1. The start and end of the range of text referenced (in JSON format)
-2. A boolean indicating if this is the last available text to reference
-
-Format:
-{
-    "start": "...",
-    "end": "...",
-    "isComplete": true/false
-}
-Following the text in chronological order. Do not skip any part.
-"""
-next_section_index = [
-    i
-    for i, s in enumerate(article.primary_sections)
-    if s.matches_type(CommonPrimarySectionType.INTRODUCTION)
-][0]
-get_sections_until_threshold(article.primary_sections[next_section_index:], 2000, 750)
-
-source_context = source_context_prompt("")
-slide_context = slide_context_prompt("")
+g_prior_chat_context = [g_system_prompt, g_overview_request]
+g_next_slide = next_slide(
+    llm=g_llm_smartest,
+    prior_chat_context=g_prior_chat_context,
+    overview_slide_response=SlideResponse.from_chat_response(
+        g_llm_smartest.chat(g_prior_chat_context)
+    ),
+    next_section_index=next(
+        i
+        for i, s in enumerate(g_article.primary_sections)
+        if s.matches_type(CommonPrimarySectionType.INTRODUCTION)
+    ),
+)
 
 
 # %%
@@ -319,7 +406,7 @@ class SlideShowWorkflow(Workflow):
             f', and write the corresponding speaker note: """{ev.section.content}"""',
         )
         print(message)
-        response = await llm.achat([message])
+        response = await g_llm_smartest.achat([message])
         print(f'{ev.index}:\n"""{response}"""')
         return SlideCreatedEvent(index=ev.index, content=str(response.message.content))
 
@@ -342,18 +429,18 @@ class SlideShowWorkflow(Workflow):
         return StopEvent(result=slides)
 
 
-slides: list[str] = []
-workflow = SlideShowWorkflow(timeout=60)
+g_slides: list[str] = []
+g_workflow = SlideShowWorkflow(timeout=60)
 # draw_all_possible_flows(workflow)
 
 
 async def main(args: BaseArgs):
-    global slides
-    slides = await workflow.run(sections=primary_sections)
+    global g_slides
+    g_slides = await g_workflow.run(sections=primary_sections)
     # draw_most_recent_execution(workflow)
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    full_text = f"\n{"-" * 10}\n".join(x for x in slides)
+    full_text = f"\n{"-" * 10}\n".join(x for x in g_slides)
 
     with open(output_dir / args.output_filename, "w", encoding="utf-8") as f:
         f.write(full_text)
@@ -362,9 +449,9 @@ async def main(args: BaseArgs):
 # %%
 if __name__ == "__main__":
     try:
-        loop = asyncio.get_running_loop()
-        await main(main_args)  # type: ignore  # noqa: F704
+        g_loop = asyncio.get_running_loop()
+        await main(g_main_args)  # type: ignore  # noqa: F704
     except RuntimeError:
-        asyncio.run(main(main_args))
+        asyncio.run(main(g_main_args))
 
 # %%

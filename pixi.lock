@@ -6059,7 +6059,7 @@ packages:
 - pypi: .
   name: media-processing
   version: 0.1.0
-  sha256: 12e9afba22d5909f9b7f80bf3767757f9c930407d1a1fd8acbdf480a201c1d96
+  sha256: 11021b04162a47d4c9110cf109290cbbc3c36ed47dda29b98a3930331bf6b978
   requires_dist:
   - ctranslate2>=4.5.0
   - faster-whisper>=1.1.0
@@ -8015,8 +8015,6 @@ packages:
   - python_abi 3.12.* *_cp312
   constrains:
   - __glibc >=2.17
-  arch: x86_64
-  platform: linux
   license: MIT
   license_family: MIT
   purls:
@@ -8032,8 +8030,6 @@ packages:
   - ucrt >=10.0.20348.0
   - vc >=14.2,<15
   - vc14_runtime >=14.29.30139
-  arch: x86_64
-  platform: win
   license: MIT
   license_family: MIT
   purls:
