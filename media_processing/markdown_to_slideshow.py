@@ -1,11 +1,7 @@
 # %%
-import re
 import sys
-from collections.abc import Iterable
 from dataclasses import dataclass
-from enum import StrEnum
 
-import regex
 from pydantic import BaseModel
 from tap import Tap
 
@@ -13,10 +9,10 @@ from tap import Tap
 @dataclass(frozen=True)
 class BaseArgs:
     input_path: str
-    example_source_path: str
-    example_overview_slide_path: str
     output_dir: str
     output_filename: str
+    example_source_path: str
+    example_overview_slide_path: str
 
 
 class MainArgs(Tap, BaseArgs):
@@ -40,13 +36,14 @@ if __name__ == "__main__" and "ipykernel" not in sys.modules:
 
 import asyncio
 import os
+import re
+from collections.abc import Iterable, Sequence
+from enum import StrEnum
 from pathlib import Path
-from typing import Any, Sequence, cast
+from typing import Any, cast
 
-from chonkie import SDPMChunker
+import regex
 from llama_index.core import SimpleDirectoryReader
-from llama_index.core.chat_engine import SimpleChatEngine
-from llama_index.core.chat_engine.types import AgentChatResponse
 from llama_index.core.llms import LLM, ChatMessage, ChatResponse, MessageRole
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.schema import Document
@@ -113,9 +110,11 @@ class Section:
                 level, clean_title = 1, title.strip()
         return cls(level=level, title=clean_title, content=content)
 
-    def matches_type(self, type: SectionType) -> bool:
+    def matches_type(self, section_type: SectionType) -> bool:
         return (
-            fuzz.partial_ratio(type.lower(), self.title.lower() if self.title else "")
+            fuzz.partial_ratio(
+                section_type.lower(), self.title.lower() if self.title else ""
+            )
             >= 80
         )
 
@@ -140,8 +139,8 @@ def markdown_from_sections(sections: "Iterable[Section]") -> str:
 
 @dataclass(frozen=True)
 class ResearchArticle:
-    primary_sections: list[Section]
-    supportive_sections: list[Section]
+    primary_sections: Sequence[Section]
+    supportive_sections: Sequence[Section]
 
     @classmethod
     def from_sections(cls, sections: Iterable[Section]) -> "ResearchArticle":
@@ -151,17 +150,20 @@ class ResearchArticle:
         for section in sections:
             (
                 supportive
-                if any(section.matches_type(type) for type in SupportiveSectionType)
+                if any(section.matches_type(t) for t in SupportiveSectionType)
                 else primary
             ).append(section)
 
         return cls(primary_sections=primary, supportive_sections=supportive)
 
-    def get_primary_opening_sections(self) -> Iterable[Section]:
+    def get_primary_opening_sections(self) -> list[Section]:
+        sections: list[Section] = []
         for section in self.primary_sections:
-            yield section
+            sections.append(section)
             if section.matches_type(CommonPrimarySectionType.INTRODUCTION):
                 break
+
+        return sections
 
 
 def get_sections_until_threshold(
@@ -218,14 +220,37 @@ def overview_request_prompt(example_text: str, example_slide: str, text: str) ->
     )
 
 
-def slide_context_prompt(current_slides: str) -> str:
-    return f"These are the current slides:\n{triple_quote(current_slides)}"
-
-
 class SlideReferenceStatus(BaseModel):
     start: str
     end: str
     isComplete: bool
+
+
+@dataclass(frozen=True)
+class SlideResponse:
+    message: ChatMessage
+    content: str
+    reference_status: SlideReferenceStatus
+    source: Sequence[Section]
+
+    @classmethod
+    def from_chat_response(
+        cls, response: ChatResponse, source: Iterable[Section]
+    ) -> "SlideResponse":
+        content = get_response_content(response).strip("-\n\r ")
+        return cls(
+            message=ChatMessage(
+                role=MessageRole.ASSISTANT,
+                content=content,
+            ),
+            content=content,
+            reference_status=get_status(content),
+            source=[*source],
+        )
+
+
+def slide_context_prompt(slides: Iterable[SlideResponse]) -> str:
+    return f"These are the current slides:\n{triple_quote("\n---\n".join(s.content for s in slides))}"
 
 
 class JsonObjectString(str):
@@ -294,20 +319,6 @@ def get_status(res_content: str):
     )
 
 
-@dataclass(frozen=True)
-class SlideResponse:
-    message: ChatMessage
-    content: str
-    reference_status: SlideReferenceStatus
-
-    @classmethod
-    def from_chat_response(cls, res: ChatResponse) -> "SlideResponse":
-        content = get_response_content(res)
-        return cls(
-            message=res.message, content=content, reference_status=get_status(content)
-        )
-
-
 g_system_prompt = ChatMessage(
     role=MessageRole.SYSTEM,
     content="Write the next reply in the conversation. Use markdown for formatting when appropriate. Be concise yet helpful. Offer direct answers when possible. Ask questions if needed. Explain complex concepts with brief examples. Avoid repetition and strive to add value with each response.",
@@ -316,18 +327,12 @@ g_system_prompt = ChatMessage(
 
 def next_slide(
     llm: LLM,
-    prior_chat_context: Sequence[ChatMessage],
-    overview_slide_response: SlideResponse,
-    next_section_index: int,
+    prior_chat_context: Iterable[ChatMessage],
+    overview_slide: SlideResponse,
+    existing_slides: Sequence[SlideResponse],
+    source: Iterable[Section],
 ) -> SlideResponse:
-    source_context = source_context_prompt(
-        markdown_from_sections(
-            get_sections_until_threshold(
-                g_article.primary_sections[next_section_index:], 2000, 750
-            )
-        )
-    )
-    slide_context = slide_context_prompt(overview_slide_response.content)
+    source_context = source_context_prompt(markdown_from_sections(source))
     next_slide_prompt = """
     Write the single next slide. The slide content should be brief. The speaker notes should reference the slide content, not the slide itself, without adding introductory or concluding remarks. At the end of the speaker notes, write down:
     1. The start and end of the range of text referenced (in JSON format)
@@ -345,35 +350,64 @@ def next_slide(
 
     chat_context = [
         *prior_chat_context,
-        overview_slide_response.message,
+        overview_slide.message,
         ChatMessage(role=MessageRole.USER, content=source_context),
-        ChatMessage(role=MessageRole.USER, content=slide_context),
+        *(
+            [
+                ChatMessage(
+                    role=MessageRole.USER, content=slide_context_prompt(existing_slides)
+                )
+            ]
+            if len(existing_slides) > 0
+            else []
+        ),
         ChatMessage(role=MessageRole.USER, content=next_slide_prompt),
     ]
-    return SlideResponse.from_chat_response(llm.chat(chat_context))
+    return SlideResponse.from_chat_response(
+        response=llm.chat(chat_context), source=source
+    )
 
 
+g_opening_sections = g_article.get_primary_opening_sections()
 g_overview_request = ChatMessage(
     role=MessageRole.USER,
     content=overview_request_prompt(
         markdown_from_sections(g_example_article.get_primary_opening_sections()),
         g_example_slide,
-        markdown_from_sections(g_article.get_primary_opening_sections()),
+        markdown_from_sections(g_opening_sections),
     ),
 )
-g_prior_chat_context = [g_system_prompt, g_overview_request]
-g_next_slide = next_slide(
-    llm=g_llm_smartest,
-    prior_chat_context=g_prior_chat_context,
-    overview_slide_response=SlideResponse.from_chat_response(
-        g_llm_smartest.chat(g_prior_chat_context)
-    ),
-    next_section_index=next(
-        i
-        for i, s in enumerate(g_article.primary_sections)
-        if s.matches_type(CommonPrimarySectionType.INTRODUCTION)
-    ),
+g_prior_chat_context: list[ChatMessage] = [g_system_prompt, g_overview_request]
+g_overview_slide_response = SlideResponse.from_chat_response(
+    g_llm_smartest.chat(g_prior_chat_context), g_opening_sections
 )
+g_prior_chat_context.append(g_overview_slide_response.message)
+g_next_section_index = next(
+    i
+    for i, s in enumerate(g_article.primary_sections)
+    if s.matches_type(CommonPrimarySectionType.INTRODUCTION)
+)
+g_source_sections = get_sections_until_threshold(
+    g_article.primary_sections[g_next_section_index:], 2000, 750
+)
+g_existing_slides: list[SlideResponse] = []
+
+while g_next_section_index < len(g_article.primary_sections):
+    print(g_next_section_index)
+    g_next_slide = next_slide(
+        llm=g_llm_smartest,
+        prior_chat_context=g_prior_chat_context,
+        overview_slide=g_overview_slide_response,
+        existing_slides=g_existing_slides,
+        source=g_source_sections,
+    )
+    g_existing_slides.append(g_next_slide)
+
+    if g_next_slide.reference_status.isComplete:
+        g_next_section_index += len(g_source_sections)
+        g_source_sections = get_sections_until_threshold(
+            g_article.primary_sections[g_next_section_index:], 2000, 750
+        )
 
 
 # %%
@@ -431,13 +465,13 @@ class SlideShowWorkflow(Workflow):
 
 g_slides: list[str] = []
 g_workflow = SlideShowWorkflow(timeout=60)
-# draw_all_possible_flows(workflow)
+draw_all_possible_flows(g_workflow)
 
 
 async def main(args: BaseArgs):
     global g_slides
     g_slides = await g_workflow.run(sections=primary_sections)
-    # draw_most_recent_execution(workflow)
+    draw_most_recent_execution(g_workflow)
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     full_text = f"\n{"-" * 10}\n".join(x for x in g_slides)
