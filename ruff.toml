@@ -1,7 +1,7 @@
 [lint]
 ignore = ["E402"]
 unfixable = ["F401"]
-select = ["E4", "E7", "E9", "F", "A", "B", "C4", "UP"]
+select = ["E4", "E7", "E9", "F", "A", "B", "C4", "UP", "S"]
 
 [lint.flake8-comprehensions]
 allow-dict-calls-with-keyword-arguments = true

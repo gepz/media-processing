@@ -1,7 +1,7 @@
 [project]
 name = "media-processing"
 authors = [{name = "gepz", email = "62634767+gepz@users.noreply.github.com"}]
-dependencies = [ "ctranslate2>=4.5.0", "faster-whisper>=1.1.0", "llama-index-llms-anthropic>=0.5.0", "llama-index-llms-openrouter>=0.3.0", "llama-index-embeddings-huggingface>=0.4.0", "llama-index-embeddings-voyageai>=0.3.0", "docling>=2.7.0", "datasets>=3.1.0", "llama-index-utils-workflow>=0.3.0", "llama-index>=0.12.4", "chonkie>=0.2.2"]
+dependencies = [ "ctranslate2>=4.5.0", "faster-whisper>=1.1.0", "llama-index-llms-anthropic>=0.5.0", "llama-index-llms-openrouter>=0.3.0", "llama-index-embeddings-huggingface>=0.4.0", "llama-index-embeddings-voyageai>=0.3.0", "docling>=2.7.0", "datasets>=3.1.0", "llama-index-utils-workflow>=0.3.0", "llama-index>=0.12.4", "chonkie>=0.2.2", "mdformat-simple-breaks>=0.0.1,<0.0.2"]
 description = "Add a short description here"
 requires-python = ">=3.12"
 version = "0.1.0"
@@ -47,3 +47,6 @@ transformers = ">=4.46.3,<5"
 tokenizers = ">=0.20.4,<0.21"
 rapidfuzz = ">=3.10.1,<4"
 regex = ">=2024.11.6,<2025"
+markdown-it-py = ">=3.0.0,<4"
+mdformat = ">=0.7.21,<0.8"
+more-itertools = ">=10.5.0,<11"

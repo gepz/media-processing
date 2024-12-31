@@ -2,8 +2,9 @@
 import sys
 from dataclasses import dataclass
 
-from pydantic import BaseModel
 from tap import Tap
+
+from media_processing.prompt import triple_quote
 
 
 @dataclass(frozen=True)
@@ -40,9 +41,8 @@ import re
 from collections.abc import Iterable, Sequence
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Self, cast
 
-import regex
 from llama_index.core import SimpleDirectoryReader
 from llama_index.core.llms import LLM, ChatMessage, ChatResponse, MessageRole
 from llama_index.core.node_parser import SentenceSplitter
@@ -55,7 +55,6 @@ from llama_index.core.workflow import (
     Workflow,
     step,
 )
-from llama_index.llms.openai_like import OpenAILike
 from llama_index.llms.openrouter import OpenRouter
 from llama_index.utils.workflow import (
     draw_all_possible_flows,
@@ -63,6 +62,7 @@ from llama_index.utils.workflow import (
 )
 from rapidfuzz import fuzz
 
+import media_processing.slidesshow.slide_response as sr
 from media_processing import event_logging
 
 event_logging.start()
@@ -92,7 +92,7 @@ class Section:
     content: str
 
     @classmethod
-    def from_text(cls, text: str) -> "Section":
+    def from_text(cls, text: str) -> Self:
         match text.split("\n\n", 1):
             case [title, content]:
                 pass
@@ -143,7 +143,7 @@ class ResearchArticle:
     supportive_sections: Sequence[Section]
 
     @classmethod
-    def from_sections(cls, sections: Iterable[Section]) -> "ResearchArticle":
+    def from_sections(cls, sections: Iterable[Section]) -> Self:
         primary = []
         supportive = []
 
@@ -202,77 +202,39 @@ g_example_article = ResearchArticle.from_sections(
 
 
 # %%
-def triple_quote(content: str) -> str:
-    return f'"""\n{content}\n"""'
-
-
 def source_context_prompt(text: str) -> str:
     return f"I have the following academic text:\n{triple_quote(text)}"
 
 
-def overview_request_prompt(example_text: str, example_slide: str, text: str) -> str:
+def get_response_content(res: ChatResponse):
+    for choice in cast(Any, res.raw).choices:
+        if hasattr(choice, "error"):
+            raise ValueError(f"Error: {choice.error}")
+    if res.message.content is None:
+        raise ValueError("message is None")
+    return res.message.content
+
+
+def conversion_example_prompt(example_text: str, example_slide: str) -> str:
     return (
         f"{source_context_prompt(example_text)}\n"
         "For reference, here's how it was converted into slide format:\n"
         f"{triple_quote(example_slide)}\n"
-        "Please convert the following academic text into a concise, high-level overview using a similar format. The slide content should be brief, and the speaker notes should reference the slide content without adding introductory or concluding remarks. Stop output after the JSON.\n"
+    )
+
+
+def overview_request_prompt(example_text: str, example_slide: str, text: str) -> str:
+    return (
+        conversion_example_prompt(
+            example_text=example_text, example_slide=example_slide
+        )
+        + "Please convert the following academic text into a concise, high-level overview using a similar format. The slide content should be brief, and the speaker notes should reference the slide content without adding introductory or concluding remarks. Stop output after the JSON.\n"
         f"{triple_quote(text)}"
     )
 
 
-class SlideReferenceStatus(BaseModel):
-    start: str
-    end: str
-    isComplete: bool
-
-
-@dataclass(frozen=True)
-class SlideResponse:
-    message: ChatMessage
-    content: str
-    reference_status: SlideReferenceStatus
-    source: Sequence[Section]
-
-    @classmethod
-    def from_chat_response(
-        cls, response: ChatResponse, source: Iterable[Section]
-    ) -> "SlideResponse":
-        content = get_response_content(response).strip("-\n\r ")
-        return cls(
-            message=ChatMessage(
-                role=MessageRole.ASSISTANT,
-                content=content,
-            ),
-            content=content,
-            reference_status=get_status(content),
-            source=[*source],
-        )
-
-
-def slide_context_prompt(slides: Iterable[SlideResponse]) -> str:
-    return f"These are the current slides:\n{triple_quote("\n---\n".join(s.content for s in slides))}"
-
-
-class JsonObjectString(str):
-    pass
-
-
-def extract_segments(text: str) -> list[str | JsonObjectString]:
-    json_object_pattern = r"{(?:[^{}]|(?R))*}"
-    segments: list[str | JsonObjectString] = []
-    last_end = 0
-
-    for match in regex.finditer(json_object_pattern, text):
-        substr = text[last_end : match.start()]
-        if len(substr) > 0:
-            segments.append(substr)
-        segments.append(JsonObjectString(match.group()))
-        last_end = match.end()
-
-    if last_end < len(text):
-        segments.append(text[last_end:].strip())
-
-    return segments
+def merge_slice_ranges(slices: Iterable[slice], length: int) -> list[int]:
+    return list(dict.fromkeys(i for s in slices for i in range(length)[s]))
 
 
 g_splitter = SentenceSplitter()
@@ -287,7 +249,7 @@ g_llm_smart = OpenRouter(
     temperature=0.08,
 )
 
-g_llm_smartest = OpenAILike(
+g_llm_smartest = OpenRouter(
     max_tokens=1920,
     context_window=16384,
     model="anthropic/claude-3.5-sonnet",
@@ -295,29 +257,14 @@ g_llm_smartest = OpenAILike(
     api_key=g_api_key,
     api_version="v1",
     temperature=0.08,
+    additional_kwargs={
+        "extra_body": {"provider": {"order": ["Anthropic"], "allow_fallbacks": False}}
+    },
 )
 
 
-with open(g_main_args.example_overview_slide_path, encoding="utf-8") as f:
-    g_example_slide = f.read()
-
-
-def get_response_content(res: ChatResponse):
-    for choice in cast(Any, res.raw).choices:
-        if hasattr(choice, "error"):
-            raise ValueError(f"Error: {choice.error}")
-    if res.message.content is None:
-        raise ValueError("message is None")
-    return res.message.content
-
-
-def get_status(res_content: str):
-    return SlideReferenceStatus.model_validate_json(
-        next(
-            s for s in extract_segments(res_content) if isinstance(s, JsonObjectString)
-        )
-    )
-
+with open(g_main_args.example_overview_slide_path, encoding="utf-8") as g_f:
+    g_example_slide = g_f.read()
 
 g_system_prompt = ChatMessage(
     role=MessageRole.SYSTEM,
@@ -328,34 +275,38 @@ g_system_prompt = ChatMessage(
 def next_slide(
     llm: LLM,
     prior_chat_context: Iterable[ChatMessage],
-    overview_slide: SlideResponse,
-    existing_slides: Sequence[SlideResponse],
+    existing_slides: Sequence[sr.SlideResponse],
     source: Iterable[Section],
-) -> SlideResponse:
+) -> sr.SlideResponse:
     source_context = source_context_prompt(markdown_from_sections(source))
-    next_slide_prompt = """
-    Write the single next slide. The slide content should be brief. The speaker notes should reference the slide content, not the slide itself, without adding introductory or concluding remarks. At the end of the speaker notes, write down:
-    1. The start and end of the range of text referenced (in JSON format)
-    2. A boolean indicating if this is basically the last available meaningful text to reference
+    next_slide_prompt = """Write the single next slide. The slide content should be brief. The speaker notes should reference the slide content, not the slide itself, without adding introductory or concluding remarks. At the end of the speaker notes, write down:
+1. The start and end of the range of text referenced (in JSON format)
+2. A boolean indicating if this is basically the last available meaningful text to reference
 
-    JSON Format:
-    {
-        "start": "Start of a sentence...",
-        "end": "...end of a sentence.",
-        "isComplete": true/false
-    }
-    Stop output after the JSON.
-    Following the text in chronological order. Do not skip any part.
-    """
+JSON Format:
+{
+    "start": "Start of a sentence...",
+    "end": "...end of a sentence.",
+    "isComplete": true/false
+}
+Stop output after the JSON.
+Following the text in chronological order. Do not skip any part."""
 
     chat_context = [
         *prior_chat_context,
-        overview_slide.message,
         ChatMessage(role=MessageRole.USER, content=source_context),
         *(
             [
                 ChatMessage(
-                    role=MessageRole.USER, content=slide_context_prompt(existing_slides)
+                    role=MessageRole.USER,
+                    content=sr.slides_to_context_prompt(
+                        [
+                            existing_slides[i]
+                            for i in merge_slice_ranges(
+                                [slice(0, 1), slice(-2, None)], len(existing_slides)
+                            )
+                        ]
+                    ),
                 )
             ]
             if len(existing_slides) > 0
@@ -363,9 +314,8 @@ def next_slide(
         ),
         ChatMessage(role=MessageRole.USER, content=next_slide_prompt),
     ]
-    return SlideResponse.from_chat_response(
-        response=llm.chat(chat_context), source=source
-    )
+
+    return sr.SlideResponse.from_markdown(get_response_content(llm.chat(chat_context)))
 
 
 g_opening_sections = g_article.get_primary_opening_sections()
@@ -378,10 +328,14 @@ g_overview_request = ChatMessage(
     ),
 )
 g_prior_chat_context: list[ChatMessage] = [g_system_prompt, g_overview_request]
-g_overview_slide_response = SlideResponse.from_chat_response(
-    g_llm_smartest.chat(g_prior_chat_context), g_opening_sections
+g_overview_slide_response = sr.SlideResponse.from_markdown(
+    get_response_content(g_llm_smartest.chat(g_prior_chat_context))
 )
-g_prior_chat_context.append(g_overview_slide_response.message)
+g_prior_chat_context.append(
+    ChatMessage(
+        role=MessageRole.ASSISTANT, content=g_overview_slide_response.to_markdown()
+    )
+)
 g_next_section_index = next(
     i
     for i, s in enumerate(g_article.primary_sections)
@@ -390,14 +344,13 @@ g_next_section_index = next(
 g_source_sections = get_sections_until_threshold(
     g_article.primary_sections[g_next_section_index:], 2000, 750
 )
-g_existing_slides: list[SlideResponse] = []
+g_existing_slides: list[sr.SlideResponse] = []
 
 while g_next_section_index < len(g_article.primary_sections):
     print(g_next_section_index)
     g_next_slide = next_slide(
         llm=g_llm_smartest,
         prior_chat_context=g_prior_chat_context,
-        overview_slide=g_overview_slide_response,
         existing_slides=g_existing_slides,
         source=g_source_sections,
     )
@@ -470,7 +423,7 @@ draw_all_possible_flows(g_workflow)
 
 async def main(args: BaseArgs):
     global g_slides
-    g_slides = await g_workflow.run(sections=primary_sections)
+    g_slides = await g_workflow.run(sections="primary_sections")
     draw_most_recent_execution(g_workflow)
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
