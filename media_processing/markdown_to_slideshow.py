@@ -62,6 +62,7 @@ from llama_index.utils.workflow import (
 )
 from rapidfuzz import fuzz
 
+import media_processing.slidesshow.markdown_slide as ms
 import media_processing.slidesshow.slide_response as sr
 from media_processing import event_logging
 
@@ -202,6 +203,13 @@ g_example_article = ResearchArticle.from_sections(
 
 
 # %%
+ms.MarkdownSlide.parser.parse("""---
+valid-front-matter: true
+---
+""")
+
+
+# %%
 def source_context_prompt(text: str) -> str:
     return f"I have the following academic text:\n{triple_quote(text)}"
 
@@ -219,22 +227,26 @@ def conversion_example_prompt(example_text: str, example_slide: str) -> str:
     return (
         f"{source_context_prompt(example_text)}\n"
         "For reference, here's how it was converted into slide format:\n"
-        f"{triple_quote(example_slide)}\n"
+        f"{triple_quote(example_slide)}"
     )
 
 
 def overview_request_prompt(example_text: str, example_slide: str, text: str) -> str:
     return (
-        conversion_example_prompt(
+        f"{conversion_example_prompt(
             example_text=example_text, example_slide=example_slide
-        )
+        )}\n"
         + "Please convert the following academic text into a concise, high-level overview using a similar format. The slide content should be brief, and the speaker notes should reference the slide content without adding introductory or concluding remarks. Stop output after the JSON.\n"
         f"{triple_quote(text)}"
     )
 
 
+def expand_slice(s: slice, length: int) -> range:
+    return range(length)[s]
+
+
 def merge_slice_ranges(slices: Iterable[slice], length: int) -> list[int]:
-    return list(dict.fromkeys(i for s in slices for i in range(length)[s]))
+    return [*dict.fromkeys(i for s in slices for i in expand_slice(s, length))]
 
 
 g_splitter = SentenceSplitter()
@@ -275,7 +287,7 @@ g_system_prompt = ChatMessage(
 def next_slide(
     llm: LLM,
     prior_chat_context: Iterable[ChatMessage],
-    existing_slides: Sequence[sr.SlideResponse],
+    existing_slides: Sequence[ms.MarkdownSlide],
     source: Iterable[Section],
 ) -> sr.SlideResponse:
     source_context = source_context_prompt(markdown_from_sections(source))
@@ -299,11 +311,11 @@ Following the text in chronological order. Do not skip any part."""
             [
                 ChatMessage(
                     role=MessageRole.USER,
-                    content=sr.slides_to_context_prompt(
+                    content=ms.slides_to_context_prompt(
                         [
                             existing_slides[i]
                             for i in merge_slice_ranges(
-                                [slice(0, 1), slice(-2, None)], len(existing_slides)
+                                [slice(0, 2), slice(-2, None)], len(existing_slides)
                             )
                         ]
                     ),
@@ -333,7 +345,8 @@ g_overview_slide_response = sr.SlideResponse.from_markdown(
 )
 g_prior_chat_context.append(
     ChatMessage(
-        role=MessageRole.ASSISTANT, content=g_overview_slide_response.to_markdown()
+        role=MessageRole.ASSISTANT,
+        content=g_overview_slide_response.slide.to_markdown(),
     )
 )
 g_next_section_index = next(
@@ -344,18 +357,28 @@ g_next_section_index = next(
 g_source_sections = get_sections_until_threshold(
     g_article.primary_sections[g_next_section_index:], 2000, 750
 )
-g_existing_slides: list[sr.SlideResponse] = []
+g_existing_slides: list[ms.MarkdownSlide] = []
+g_last_level1_title: str | None = None
 
 while g_next_section_index < len(g_article.primary_sections):
     print(g_next_section_index)
+    for g_section in g_source_sections:
+        if g_section.level == 1 and g_last_level1_title != g_section.title:
+            g_last_level1_title = g_section.title
+            g_existing_slides.append(
+                ms.MarkdownSlide.from_markdown(f"# {g_section.title}")
+            )
+
     g_next_slide = next_slide(
         llm=g_llm_smartest,
         prior_chat_context=g_prior_chat_context,
         existing_slides=g_existing_slides,
         source=g_source_sections,
     )
-    g_existing_slides.append(g_next_slide)
+    g_existing_slides.append(g_next_slide.slide)
 
+    if g_next_slide.reference_status is None:
+        raise ValueError("LLM did not respnod with reference status Json")
     if g_next_slide.reference_status.isComplete:
         g_next_section_index += len(g_source_sections)
         g_source_sections = get_sections_until_threshold(

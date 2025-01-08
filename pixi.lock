@@ -223,6 +223,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/matplotlib-base-3.9.3-py312hd3ec401_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/matplotlib-inline-0.1.7-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/mdformat-0.7.21-pyhd8ed1ab_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/mdit-py-plugins-0.4.2-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/mdurl-0.1.2-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/mkl-2022.1.0-h84fe81f_915.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/linux-64/mkl-devel-2022.1.0-ha770c72_916.tar.bz2
@@ -430,6 +431,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/0a/6e/94537acfb5b8f18235d13186d247bca478fea5e87d224644e0fe907df976/lxml-5.3.0-cp312-cp312-manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/ef/9b/3dbfbe6ee255b1c37a37e2a6046adb2e77763a020591dae63e5005a2c8d7/marko-2.1.2-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/ac/a7/a78ff54e67ef92a3d12126b98eb98ab8abab3de4a8c46d240c87e514d6bb/marshmallow-3.23.1-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/5d/51/b3da1292c32819c52a4e4242ad94c3c07189ca70d228b3909a58f1f3a819/mdformat_frontmatter-2.0.8-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/20/1d/8e992c96d7ac86f85e1b4094d3887658376443b56679b834de8b23f4f849/mdformat_simple_breaks-0.0.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/b9/54/dd730b32ea14ea797530a4479b2ed46a6fb250f682a9cfb997e968bf0261/networkx-3.4.2-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/62/54/787bb70e6af2f1b1853af9bab62a5e7cb35b957d72daf253b7f3c653c005/ninja-1.11.1.2-py3-none-manylinux_2_12_x86_64.manylinux2010_x86_64.whl
@@ -452,6 +454,8 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/19/71/39c7c0d87f8d4e6c020a393182060eaefeeae6c01dab6a84ec346f2567df/rich-13.9.4-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/49/97/fa78e3d2f65c02c8e1268b9aba606569fe97f6c8f7c2d74394553347c145/rsa-4.9-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/70/db/6c8bc20061572c33766ade296071d0127e7365d4d3ff54a6c2c075de637b/Rtree-1.3.0-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
+      - pypi: https://files.pythonhosted.org/packages/ee/04/9fe08b3cc8000c1d98f2f79811d99caf992643f5d5510b5e64547659e808/ruamel.yaml-0.18.7-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/44/d0/3f68a86e006448fb6c005aee66565b9eb89014a70c491d70c08de597f8e4/ruamel.yaml.clib-0.2.12-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/66/05/7957af15543b8c9799209506df4660cba7afc4cf94bfb60513827e96bed6/s3transfer-0.10.4-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/2c/24/4bcd94046b409ac4d63e2f92e46481f95f5006a43e68f6ab2b24f5d70ab4/scikit_image-0.24.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/c6/29/044048c5e911373827c0e1d3051321b9183b2a4f8d4e2f11c08fcff83f13/scikit_learn-1.5.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
@@ -647,6 +651,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/win-64/matplotlib-base-3.9.3-py312h90004f6_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/matplotlib-inline-0.1.7-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/mdformat-0.7.21-pyhd8ed1ab_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/mdit-py-plugins-0.4.2-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/mdurl-0.1.2-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/mkl-2023.1.0-h6a75c08_48682.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/more-itertools-10.5.0-pyhd8ed1ab_1.conda
@@ -820,6 +825,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/fc/82/ace5a5676051e60355bd8fb945df7b1ba4f4fb8447f2010fb816bfd57724/lxml-5.3.0-cp312-cp312-win_amd64.whl
       - pypi: https://files.pythonhosted.org/packages/ef/9b/3dbfbe6ee255b1c37a37e2a6046adb2e77763a020591dae63e5005a2c8d7/marko-2.1.2-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/ac/a7/a78ff54e67ef92a3d12126b98eb98ab8abab3de4a8c46d240c87e514d6bb/marshmallow-3.23.1-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/5d/51/b3da1292c32819c52a4e4242ad94c3c07189ca70d228b3909a58f1f3a819/mdformat_frontmatter-2.0.8-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/20/1d/8e992c96d7ac86f85e1b4094d3887658376443b56679b834de8b23f4f849/mdformat_simple_breaks-0.0.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/b9/54/dd730b32ea14ea797530a4479b2ed46a6fb250f682a9cfb997e968bf0261/networkx-3.4.2-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/72/97/4109961b899ff2decfc0439de442cbe846c94210f263260a211cbee2b29d/ninja-1.11.1.2-py3-none-win_amd64.whl
@@ -843,6 +849,8 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/19/71/39c7c0d87f8d4e6c020a393182060eaefeeae6c01dab6a84ec346f2567df/rich-13.9.4-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/49/97/fa78e3d2f65c02c8e1268b9aba606569fe97f6c8f7c2d74394553347c145/rsa-4.9-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/85/d2/5bb7617faa3b23b51e2259f9d23e0b33f6ff0ed9811b0d05511e9b7ed84e/Rtree-1.3.0-py3-none-win_amd64.whl
+      - pypi: https://files.pythonhosted.org/packages/ee/04/9fe08b3cc8000c1d98f2f79811d99caf992643f5d5510b5e64547659e808/ruamel.yaml-0.18.7-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/d7/8f/c3654f6f1ddb75daf3922c3d8fc6005b1ab56671ad56ffb874d908bfa668/ruamel.yaml.clib-0.2.12-cp312-cp312-win_amd64.whl
       - pypi: https://files.pythonhosted.org/packages/66/05/7957af15543b8c9799209506df4660cba7afc4cf94bfb60513827e96bed6/s3transfer-0.10.4-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/d9/17/b561823143eb931de0f82fed03ae128ef954a9641309602ea0901c357f95/scikit_image-0.24.0-cp312-cp312-win_amd64.whl
       - pypi: https://files.pythonhosted.org/packages/aa/ce/c0b912f2f31aeb1b756a6ba56bcd84dd1f8a148470526a48515a3f4d48cd/scikit_learn-1.5.2-cp312-cp312-win_amd64.whl
@@ -6054,6 +6062,21 @@ packages:
   - pkg:pypi/mdformat?source=hash-mapping
   size: 33119
   timestamp: 1734683251820
+- pypi: https://files.pythonhosted.org/packages/5d/51/b3da1292c32819c52a4e4242ad94c3c07189ca70d228b3909a58f1f3a819/mdformat_frontmatter-2.0.8-py3-none-any.whl
+  name: mdformat-frontmatter
+  version: 2.0.8
+  sha256: 577396695af96ad66dff1ff781284ff3764a10be3ab8659f2ef842ab42264ebb
+  requires_dist:
+  - mdformat>=0.7.16,<0.8.0
+  - mdit-py-plugins>=0.4.0
+  - ruamel-yaml
+  - pre-commit ; extra == 'dev'
+  - python-semantic-release>=8.3.0 ; extra == 'dev'
+  - flit>=3.9 ; extra == 'dev'
+  - pytest>=7.3 ; extra == 'test'
+  - coverage ; extra == 'test'
+  - pytest-cov ; extra == 'test'
+  requires_python: '>=3.7'
 - pypi: https://files.pythonhosted.org/packages/20/1d/8e992c96d7ac86f85e1b4094d3887658376443b56679b834de8b23f4f849/mdformat_simple_breaks-0.0.1-py3-none-any.whl
   name: mdformat-simple-breaks
   version: 0.0.1
@@ -6065,6 +6088,18 @@ packages:
   - coverage ; extra == 'test'
   - pytest-cov ; extra == 'test'
   requires_python: '>=3.7'
+- conda: https://conda.anaconda.org/conda-forge/noarch/mdit-py-plugins-0.4.2-pyhd8ed1ab_1.conda
+  sha256: c63ed79d9745109c0a70397713b0c07f06e7d3561abcb122cfc80a141ab3b449
+  md5: af2060041d4f3250a7eb6ab3ec0e549b
+  depends:
+  - markdown-it-py >=1.0.0,<4.0.0
+  - python >=3.9
+  license: MIT
+  license_family: MIT
+  purls:
+  - pkg:pypi/mdit-py-plugins?source=hash-mapping
+  size: 42180
+  timestamp: 1733854816517
 - conda: https://conda.anaconda.org/conda-forge/noarch/mdurl-0.1.2-pyhd8ed1ab_1.conda
   sha256: 78c1bbe1723449c52b7a9df1af2ee5f005209f67e40b6e1d3c7619127c43b1c7
   md5: 592132998493b3ff25fd7479396e8351
@@ -6079,7 +6114,7 @@ packages:
 - pypi: .
   name: media-processing
   version: 0.1.0
-  sha256: 126ae8c114fdaafc8a4d43b58c90e73fac9d4e97226f32d2848a2cd90bcacc32
+  sha256: 594f5f1e85eba8591d1cc2c35585de3702cefa1c7f11a76b4e5ff935294119a7
   requires_dist:
   - ctranslate2>=4.5.0
   - faster-whisper>=1.1.0
@@ -6093,6 +6128,7 @@ packages:
   - llama-index>=0.12.4
   - chonkie>=0.2.2
   - mdformat-simple-breaks>=0.0.1,<0.0.2
+  - mdformat-frontmatter>=2.0.8,<3
   requires_python: '>=3.12'
   editable: true
 - conda: https://conda.anaconda.org/conda-forge/linux-64/mkl-2022.1.0-h84fe81f_915.tar.bz2
@@ -8036,6 +8072,26 @@ packages:
   version: 1.3.0
   sha256: 97f835801d24c10bbf02381abe5e327345c8296ec711dde7658792376abafc66
   requires_python: '>=3.8'
+- pypi: https://files.pythonhosted.org/packages/ee/04/9fe08b3cc8000c1d98f2f79811d99caf992643f5d5510b5e64547659e808/ruamel.yaml-0.18.7-py3-none-any.whl
+  name: ruamel-yaml
+  version: 0.18.7
+  sha256: adef56d72a97bc2a6a78952ef398c4054f248fba5698ddc3ab07434e7fc47983
+  requires_dist:
+  - ruamel-yaml-clib>=0.2.7 ; python_full_version < '3.13' and platform_python_implementation == 'CPython'
+  - ruamel-yaml-jinja2>=0.2 ; extra == 'jinja2'
+  - ryd ; extra == 'docs'
+  - mercurial>5.7 ; extra == 'docs'
+  requires_python: '>=3.7'
+- pypi: https://files.pythonhosted.org/packages/44/d0/3f68a86e006448fb6c005aee66565b9eb89014a70c491d70c08de597f8e4/ruamel.yaml.clib-0.2.12-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+  name: ruamel-yaml-clib
+  version: 0.2.12
+  sha256: 95c3829bb364fdb8e0332c9931ecf57d9be3519241323c5274bd82f709cebc0c
+  requires_python: '>=3.9'
+- pypi: https://files.pythonhosted.org/packages/d7/8f/c3654f6f1ddb75daf3922c3d8fc6005b1ab56671ad56ffb874d908bfa668/ruamel.yaml.clib-0.2.12-cp312-cp312-win_amd64.whl
+  name: ruamel-yaml-clib
+  version: 0.2.12
+  sha256: 0467c5965282c62203273b838ae77c0d29d7638c8a4e3a1c8bdd3602c10904e4
+  requires_python: '>=3.9'
 - conda: https://conda.anaconda.org/conda-forge/linux-64/ruff-0.8.3-py312h2156523_0.conda
   sha256: b82016bd9bacb9ea14491760555c2c04f7df05b10e588008cbbc9051c516e85f
   md5: 81b3ae5bcf1d0d3a1cef657f7905a15e

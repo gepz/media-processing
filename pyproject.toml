@@ -1,7 +1,7 @@
 [project]
 name = "media-processing"
 authors = [{name = "gepz", email = "62634767+gepz@users.noreply.github.com"}]
-dependencies = [ "ctranslate2>=4.5.0", "faster-whisper>=1.1.0", "llama-index-llms-anthropic>=0.5.0", "llama-index-llms-openrouter>=0.3.0", "llama-index-embeddings-huggingface>=0.4.0", "llama-index-embeddings-voyageai>=0.3.0", "docling>=2.7.0", "datasets>=3.1.0", "llama-index-utils-workflow>=0.3.0", "llama-index>=0.12.4", "chonkie>=0.2.2", "mdformat-simple-breaks>=0.0.1,<0.0.2"]
+dependencies = ["ctranslate2>=4.5.0", "faster-whisper>=1.1.0", "llama-index-llms-anthropic>=0.5.0", "llama-index-llms-openrouter>=0.3.0", "llama-index-embeddings-huggingface>=0.4.0", "llama-index-embeddings-voyageai>=0.3.0", "docling>=2.7.0", "datasets>=3.1.0", "llama-index-utils-workflow>=0.3.0", "llama-index>=0.12.4", "chonkie>=0.2.2", "mdformat-simple-breaks>=0.0.1,<0.0.2", "mdformat-frontmatter>=2.0.8,<3"]
 description = "Add a short description here"
 requires-python = ">=3.12"
 version = "0.1.0"
@@ -37,7 +37,6 @@ pytorch-cuda = { version="==12.1", channel="pytorch"}
 ipykernel = ">=6.29.5,<7"
 ipywidgets = ">=8.1.5,<9"
 einops = ">=0.8.0"
-importlib-metadata = ">=8.5.0,<9"
 treelib = ">=1.7.0"
 pillow = "==10.4.0"
 scikit-posthocs = ">=0.11.1,<0.12"
@@ -50,3 +49,4 @@ regex = ">=2024.11.6,<2025"
 markdown-it-py = ">=3.0.0,<4"
 mdformat = ">=0.7.21,<0.8"
 more-itertools = ">=10.5.0,<11"
+mdit-py-plugins = ">=0.4.2,<0.5"
