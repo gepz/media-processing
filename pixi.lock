@@ -6114,7 +6114,7 @@ packages:
 - pypi: .
   name: media-processing
   version: 0.1.0
-  sha256: 594f5f1e85eba8591d1cc2c35585de3702cefa1c7f11a76b4e5ff935294119a7
+  sha256: 780fa9532f3af4dad96232dc7629848db48bc70707336401bbf61469203af2f2
   requires_dist:
   - ctranslate2>=4.5.0
   - faster-whisper>=1.1.0
