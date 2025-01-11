@@ -4,7 +4,7 @@ from typing import Self
 
 from pydantic import BaseModel
 
-import media_processing.slidesshow.markdown_slide as ms
+import media_processing.slideshow.markdown_slide as ms
 
 
 class SlideReferenceStatus(BaseModel):

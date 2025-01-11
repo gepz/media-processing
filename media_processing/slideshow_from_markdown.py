@@ -3,7 +3,6 @@ import sys
 from dataclasses import dataclass
 from itertools import chain
 
-from more_itertools import intersperse
 from tap import Tap
 
 from media_processing.prompt import triple_quote
@@ -18,7 +17,7 @@ class BaseArgs:
     example_overview_slide_path: str
 
 
-class MainArgs(Tap, BaseArgs):
+class MainArgs(Tap):
     in_path: str  # Path to input file
     out_dir: str  # Directory for output files
     out_name: str = "output.md"  # Name of output file
@@ -37,19 +36,18 @@ if __name__ == "__main__" and "ipykernel" not in sys.modules:
     g_main_args = MainArgs().parse_args()
 
 
-import asyncio
 import os
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any, cast
 
 from llama_index.core import SimpleDirectoryReader
-from llama_index.core.llms import LLM, ChatMessage, ChatResponse, MessageRole
+from llama_index.core.llms import ChatMessage, ChatResponse, MessageRole
 from llama_index.llms.openrouter import OpenRouter
 
 import media_processing.research_article as ra
-import media_processing.slidesshow.markdown_slide as ms
-import media_processing.slidesshow.slide_response as sr
+import media_processing.slideshow.markdown_slide as ms
+import media_processing.slideshow.slide_response as sr
 from media_processing import event_logging
 
 event_logging.start()
@@ -284,20 +282,12 @@ def slideshow_from_markdown(args: BaseArgs | MainArgs) -> str:
     )
 
 
-async def main(args: BaseArgs | MainArgs):
-    result = slideshow_from_markdown(args)
-    out_dir = Path(args.out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    with open(out_dir / args.out_name, "w", encoding="utf-8") as f:
-        f.write(result)
-
-
 # %%
 if __name__ == "__main__":
-    try:
-        g_loop = asyncio.get_running_loop()
-        await main(g_main_args)  # type: ignore  # noqa: F704
-    except RuntimeError:
-        asyncio.run(main(g_main_args))
+    result = slideshow_from_markdown(g_main_args)
+    out_dir = Path(g_main_args.out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    with open(out_dir / g_main_args.out_name, "w", encoding="utf-8") as f:
+        f.write(result)
 
 # %%
