@@ -1,6 +1,7 @@
 .pixi/
 .vscode/
 **/test/fixture/
+**/test/output/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
