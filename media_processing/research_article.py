@@ -108,7 +108,7 @@ class ResearchArticle:
 def get_sections_until_threshold(
     all_sections: Sequence[Section], min_chars: int, level_1_lookahead_chars: int
 ) -> list[Section]:
-    sections = []
+    sections: Sequence[Section] = []
     total_chars = 0
     for section in all_sections:
         if (section.level == 1 and len(sections) > 0) or total_chars >= min_chars:
