@@ -100,7 +100,7 @@ class MarkdownSlide:
         note: Note | None = None
         for i, node in enumerate(rest_nodes):
             match node.type:
-                case "paragraph" | "bullet_list":
+                case "paragraph" | "bullet_list" | "ordered_list":
                     main_contents.append(MainContent(node))
                 case "html_block" if note is None:
                     if node.content[:4] == "<!--":

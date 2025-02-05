@@ -10,17 +10,20 @@ import media_processing.slideshow.markdown_slide as ms
 class SlideReferenceStatus(BaseModel):
     start: str
     end: str
-    isComplete: bool
 
     @classmethod
     def from_note(cls, note: ms.Note) -> Self:
-        return cls.model_validate_json(
-            next(
-                c
-                for c in reversed(note.to_segments())
-                if isinstance(c, ms.JsonObjectString)
+        try:
+            return cls.model_validate_json(
+                next(
+                    c
+                    for c in reversed(note.to_segments())
+                    if isinstance(c, ms.JsonObjectString)
+                )
             )
-        )
+        except StopIteration as e:
+            print(note.to_segments())
+            raise e
 
 
 @dataclass(frozen=True)

@@ -1,8 +1,8 @@
 # %%
 import sys
 from dataclasses import dataclass
-from itertools import chain
 
+from llama_index.core.node_parser import MarkdownNodeParser
 from tap import Tap
 
 from media_processing.prompt import triple_quote
@@ -44,13 +44,15 @@ from typing import Any, cast
 from llama_index.core import SimpleDirectoryReader
 from llama_index.core.llms import ChatMessage, ChatResponse, MessageRole
 from llama_index.llms.openrouter import OpenRouter
+from tenacity import retry, stop_after_attempt, wait_fixed
 
 import media_processing.research_article as ra
 import media_processing.slideshow.markdown_slide as ms
 import media_processing.slideshow.slide_response as sr
-from media_processing import event_logging
 
-event_logging.start()
+# from media_processing import event_logging
+
+# event_logging.start()
 
 
 # %%
@@ -61,7 +63,7 @@ def source_context_prompt(text: str) -> str:
 def get_response_content(res: ChatResponse):
     for choice in cast(Any, res.raw).choices:
         if hasattr(choice, "error"):
-            raise ValueError(f"Error: {choice.error}")
+            raise ValueError(choice.error)
     if res.message.content is None:
         raise ValueError("message is None")
     return res.message.content
@@ -77,9 +79,11 @@ def conversion_example_prompt(example_text: str, example_slide: str) -> str:
 
 def overview_request_prompt(example_text: str, example_slide: str, text: str) -> str:
     return (
-        f"{conversion_example_prompt(
-            example_text=example_text, example_slide=example_slide
-        )}\n"
+        f"{
+            conversion_example_prompt(
+                example_text=example_text, example_slide=example_slide
+            )
+        }\n"
         + "Please convert the following academic text into a concise, high-level overview using a similar format. The slide content should be brief, and the speaker notes should reference the slide content without adding introductory or concluding remarks. Stop output after the JSON.\n"
         f"{triple_quote(text)}"
     )
@@ -103,54 +107,54 @@ class NonContentSlide:
     slide: ms.MarkdownSlide
 
 
-def create_next_slide_context(
-    prior_chat_context: Iterable[ChatMessage],
+def condense_existing_slides(
     existing_slides: Sequence[ContentSlide | NonContentSlide],
-    source_sections: Iterable[ra.Section],
-) -> list[ChatMessage]:
-    source_context = source_context_prompt(ra.markdown_from_sections(source_sections))
-    next_slide_prompt = """Write the single next slide. The slide content should be brief. The speaker notes should reference the slide content, not the slide itself, without adding introductory or concluding remarks. At the end of the speaker notes, write down:
-1. The start and end of the range of text referenced (in JSON format)
-2. A boolean indicating if this is basically the last available meaningful text to reference
-
-JSON Format:
-{
-    "start": "Start of a sentence...",
-    "end": "...end of a sentence.",
-    "isComplete": true/false
-}
-Stop output after the JSON.
-Following the text in chronological order. Do not skip any part."""
-
+) -> Sequence[ms.MarkdownSlide]:
     content_slide_indices = [
         i for i, s in enumerate(existing_slides) if isinstance(s, ContentSlide)
     ]
     preserved_indices = [
         content_slide_indices[i]
         for i in merge_slice_ranges(
-            [slice(0, 2), slice(-2, None)], len(content_slide_indices)
+            [slice(0, 3), slice(-3, None)], len(content_slide_indices)
         )
     ]
-    filtered_existing_slides = [
+    return [
         (
             s.slide
             if i in preserved_indices or not isinstance(s, ContentSlide)
             else ms.MarkdownSlide.from_markdown(
-                f"# {s.slide.title}\n\n\\[Content omitted\\]"
+                f"# {ms.MarkdownSlide.render_tokens(s.slide.title.node.to_tokens())}\n\n\\[...\\]"
             )
         )
         for i, s in enumerate(existing_slides)
     ]
+
+
+def create_next_slide_context(
+    prior_chat_context: Iterable[ChatMessage],
+    existing_slides: Sequence[ContentSlide | NonContentSlide],
+    source: str,
+) -> list[ChatMessage]:
+    source_context = source_context_prompt(source)
+    next_slide_prompt = """Write the single next slide. The slide content should be brief. The speaker notes should reference the slide content, not the slide itself, without adding introductory or concluding remarks. At the end of the speaker notes, write down:
+1. The start and end of the range of text referenced (in JSON format)
+
+JSON Format:
+{
+    "start": "Start of a sentence...",
+    "end": "...end of a sentence.",
+}
+Stop output after the JSON.
+Following the text in chronological order. Do not skip any part."""
+    condensed_slides_prompt = ms.slides_to_context_prompt(
+        condense_existing_slides(existing_slides)
+    )
     chat_context = [
         *prior_chat_context,
         ChatMessage(role=MessageRole.USER, content=source_context),
         *(
-            [
-                ChatMessage(
-                    role=MessageRole.USER,
-                    content=ms.slides_to_context_prompt(filtered_existing_slides),
-                )
-            ]
+            [ChatMessage(role=MessageRole.USER, content=condensed_slides_prompt)]
             if len(existing_slides) > 0
             else []
         ),
@@ -158,6 +162,83 @@ Following the text in chronological order. Do not skip any part."""
     ]
 
     return chat_context
+
+
+@dataclass
+class TextRange:
+    start: int
+    end: int
+    text: str
+
+
+class SourceTracker:
+    def __init__(self):
+        self.sections: list[ra.Section] = []
+        self.referenced_ranges: list[TextRange] = []
+        self._cached_text: str | None = None
+
+    @property
+    def source_text(self) -> str:
+        if self._cached_text is None:
+            self._cached_text = ra.markdown_from_sections(self.sections)
+        return self._cached_text
+
+    def update_sections(self, removed_count: int, new_sections: Sequence[ra.Section]):
+        if removed_count > len(self.sections):
+            raise ValueError("Cannot remove more sections than exist")
+
+        removed_text_length = len(
+            ra.markdown_from_sections(self.sections[:removed_count])
+        )
+
+        self.referenced_ranges = [
+            TextRange(
+                r.start - removed_text_length, r.end - removed_text_length, r.text
+            )
+            for r in self.referenced_ranges
+            if r.start >= removed_text_length
+        ]
+
+        self.sections = self.sections[removed_count:] + list(new_sections)
+        self._cached_text = None
+
+    def add_reference(self, text: str):
+        start = self.source_text.find(text)
+        if start >= 0:
+            self.referenced_ranges.append(TextRange(start, start + len(text), text))
+            self._merge_overlapping_ranges()
+
+    def _merge_overlapping_ranges(self):
+        if not self.referenced_ranges:
+            return
+
+        self.referenced_ranges.sort(key=lambda r: r.start)
+        merged = [self.referenced_ranges[0]]
+
+        for current in self.referenced_ranges[1:]:
+            previous = merged[-1]
+            if current.start <= previous.end:
+                previous.end = max(previous.end, current.end)
+                previous.text = self.source_text[previous.start : previous.end]
+            else:
+                merged.append(current)
+
+        self.referenced_ranges = merged
+
+    def get_marked_source(self) -> str:
+        if len(self.referenced_ranges) == 0:
+            return self.source_text
+
+        result = []
+        last_end = 0
+
+        for r in self.referenced_ranges:
+            result.append(self.source_text[last_end : r.start])
+            result.append(f"<referenced>{r.text}</referenced>")
+            last_end = r.end
+
+        result.append(self.source_text[last_end:])
+        return "".join(result)
 
 
 def slideshow_from_markdown(args: BaseArgs | MainArgs) -> str:
@@ -179,7 +260,7 @@ def slideshow_from_markdown(args: BaseArgs | MainArgs) -> str:
         api_base="https://openrouter.ai/api/v1",
         api_key=api_key,
         api_version="v1",
-        temperature=0.08,
+        temperature=0.01,
         additional_kwargs={
             "extra_body": {
                 "provider": {"order": ["Anthropic"], "allow_fallbacks": False}
@@ -188,13 +269,19 @@ def slideshow_from_markdown(args: BaseArgs | MainArgs) -> str:
     )
 
     article = ra.ResearchArticle.from_sections(
-        ra.sections_from_documents(
-            SimpleDirectoryReader(input_files=[args.in_path]).load_data()
+        ra.sections_from_nodes(
+            MarkdownNodeParser().get_nodes_from_documents(
+                SimpleDirectoryReader(input_files=[args.in_path]).load_data()
+            )
         )
     )
     example_article = ra.ResearchArticle.from_sections(
-        ra.sections_from_documents(
-            SimpleDirectoryReader(input_files=[args.example_source_path]).load_data()
+        ra.sections_from_nodes(
+            MarkdownNodeParser().get_nodes_from_documents(
+                SimpleDirectoryReader(
+                    input_files=[args.example_source_path]
+                ).load_data()
+            )
         )
     )
     with open(args.example_overview_slide_path, encoding="utf-8") as f:
@@ -213,72 +300,89 @@ def slideshow_from_markdown(args: BaseArgs | MainArgs) -> str:
             ra.markdown_from_sections(opening_sections),
         ),
     )
-    prior_chat_context: list[ChatMessage] = [system_prompt, overview_request]
-    overview_slide_response = sr.SlideResponse.from_markdown(
-        get_response_content(llm_smartest.chat(prior_chat_context))
-    )
-    prior_chat_context.append(
-        ChatMessage(
-            role=MessageRole.ASSISTANT,
-            content=overview_slide_response.slide.to_markdown(),
+
+    @retry(wait=wait_fixed(10), stop=(stop_after_attempt(3)))
+    def get_content_with_retry():
+        return get_response_content(
+            llm_smartest.chat([system_prompt, overview_request])
         )
-    )
+
+    overview_slide_response = sr.SlideResponse.from_markdown(get_content_with_retry())
+
     next_section_index = next(
         i
         for i, s in enumerate(article.primary_sections)
         if s.matches_type(ra.CommonPrimarySectionType.INTRODUCTION)
     )
-    source_sections = ra.get_sections_until_threshold(
+    old_source_sections: Sequence[ra.Section] = []
+    new_source_sections: Sequence[ra.Section] = ra.get_sections_until_threshold(
         article.primary_sections[next_section_index:], 2000, 750
     )
-    existing_slides: list[ContentSlide | NonContentSlide] = []
+    existing_slides: list[ContentSlide | NonContentSlide] = [
+        ContentSlide(slide=overview_slide_response.slide)
+    ]
     last_level1_title: str | None = None
-
     while next_section_index < len(article.primary_sections):
         print(next_section_index)
-        for section in source_sections:
+        for section in new_source_sections:
             if section.level == 1 and last_level1_title != section.title:
                 last_level1_title = section.title
                 existing_slides.append(
                     NonContentSlide(
                         slide=ms.MarkdownSlide.from_markdown(
-                            "---\nlayout: center\n---\n\n" f"# {section.title}"
+                            f"---\nlayout: center\n---\n\n# {section.title}"
                         )
                     )
                 )
-
+        next_slide_context: Sequence[ChatMessage] = create_next_slide_context(
+            prior_chat_context=[system_prompt],
+            existing_slides=existing_slides,
+            source=ra.markdown_from_sections(old_source_sections + new_source_sections),
+        )
         next_slide = sr.SlideResponse.from_markdown(
-            get_response_content(
-                llm_smartest.chat(
-                    create_next_slide_context(
-                        prior_chat_context=prior_chat_context,
-                        existing_slides=existing_slides,
-                        source_sections=source_sections,
-                    )
-                )
-            )
+            get_response_content(llm_smartest.chat(next_slide_context))
         )
 
         existing_slides.append(ContentSlide(slide=next_slide.slide))
 
+        print("slide_title:", next_slide.slide.title.to_segments())
+        print("slide_status:", next_slide.reference_status)
+
         if next_slide.reference_status is None:
             raise ValueError("LLM did not respnod with reference status Json")
-        if next_slide.reference_status.isComplete:
-            next_section_index += len(source_sections)
-            source_sections = ra.get_sections_until_threshold(
+        source_end_text = ra.markdown_from_sections(new_source_sections)[-1000:]
+        stripped_end_status = next_slide.reference_status.end.strip(".")[-300:]
+        # if stripped_end_status not in source_end_text:
+        #     print(f"{stripped_end_status} not in  {source_end_text}]")
+
+        if stripped_end_status in source_end_text:
+            print("stripped_end_status in source_end_text")
+            matching_section_index = next(
+                (
+                    i
+                    for i, section in enumerate(new_source_sections)
+                    if stripped_end_status in ra.markdown_from_sections([section])
+                )
+            )
+
+            old_source_sections = new_source_sections[matching_section_index:]
+
+            next_section_index += len(new_source_sections)
+            new_source_sections = ra.get_sections_until_threshold(
                 article.primary_sections[next_section_index:], 2000, 750
             )
 
     return ms.MarkdownSlide.render_tokens(
-        chain(
-            *[
-                ms.MarkdownSlide.parser.parse("---") + tokens
+        [
+            token
+            for s in existing_slides
+            for slide_tokens in [s.slide.to_tokens()]
+            for token in (
+                ms.MarkdownSlide.parser.parse("---") + slide_tokens
                 if s.slide.front_matter is None
-                else tokens
-                for s in existing_slides
-                for tokens in [s.slide.to_tokens()]
-            ][1:]
-        )
+                else slide_tokens
+            )
+        ][1:]
     )
 
 

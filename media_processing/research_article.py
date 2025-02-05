@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Self
 
-from llama_index.core.schema import Document
+from llama_index.core.schema import BaseNode, TextNode
 from rapidfuzz import fuzz
 
 
@@ -41,12 +41,12 @@ class Section:
             case _:
                 raise ValueError("Unexpected section text format.")
         match title.split():
-            case []:
-                level, clean_title = 1, title
-            case [first, *rest] if any(char.isdigit() for char in first):
+            case [hashes, second]:
+                level, clean_title = 1, second
+            case [hashes, first, *rest] if any(char.isdigit() for char in first):
                 level, clean_title = first.count(".") + 1, " ".join(rest)
             case _:
-                level, clean_title = 1, title.strip()
+                level, clean_title = 1, title
         return cls(level=level, title=clean_title, content=content)
 
     def matches_type(self, section_type: SectionType) -> bool:
@@ -58,15 +58,16 @@ class Section:
         )
 
     def to_markdown(self) -> str:
-        return f"# {self.title}\n\n{self.content}"
+        return f"## {self.title}\n\n{self.content}"
 
 
-def sections_from_documents(docs: Iterable[Document]) -> "list[Section]":
+def sections_from_nodes(nodes: Iterable[BaseNode]) -> "list[Section]":
     return [
         Section.from_text(cleaned)
-        for doc in docs
+        for node in nodes
+        if isinstance(node, TextNode)
         for cleaned in [
-            re.sub(r"\n{3,}", "\n\n", re.sub("\r\n", "\n", doc.text.strip()))
+            re.sub(r"\n{3,}", "\n\n", re.sub("\r\n", "\n", node.text.strip()))
         ]
         if len(cleaned) > 0
     ]

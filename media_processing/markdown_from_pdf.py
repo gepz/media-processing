@@ -1,5 +1,6 @@
 # %%
 import sys
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from tap import Tap
@@ -29,13 +30,21 @@ if __name__ == "__main__" and "ipykernel" not in sys.modules:
 import re
 from pathlib import Path
 
-from docling.document_converter import DocumentConverter
+from docling.datamodel.base_models import InputFormat
+from docling.datamodel.pipeline_options import PdfPipelineOptions, RapidOcrOptions
+from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling_core.types.doc.base import ImageRefMode
 
 
 # %%
 def markdown_from_pdf(args: BaseArgs | MainArgs) -> str:
-    converter = DocumentConverter()
+    converter = DocumentConverter(
+        format_options={
+            InputFormat.PDF: PdfFormatOption(
+                pipeline_options=PdfPipelineOptions(ocr_options=RapidOcrOptions())
+            )
+        }
+    )
     result = converter.convert(args.in_path)
     return re.sub(
         "\r\n",
