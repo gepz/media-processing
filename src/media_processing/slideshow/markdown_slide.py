@@ -15,7 +15,7 @@ from mdformat.renderer import MDRenderer
 from mdit_py_plugins.front_matter import front_matter_plugin
 from more_itertools import intersperse
 
-from media_processing.prompt import triple_quote
+from src.media_processing.prompt import triple_quote
 
 
 class JsonObjectString(str):
@@ -86,7 +86,7 @@ class MarkdownSlide:
 
     @classmethod
     def from_markdown(cls, markdown: str) -> Self:
-        tree = SyntaxTreeNode(cls.parser.parse(f"---\n{markdown.strip("\n\r-")}"))
+        tree = SyntaxTreeNode(cls.parser.parse(f"---\n{markdown.strip('\n\r-')}"))
         first_node, second_node, *rest_nodes = tree
         expected_first = ensure_types(["front_matter", "hr"], first_node)
         front_matter = (
@@ -147,6 +147,15 @@ class MarkdownSlide:
 
 
 def slides_to_context_prompt(slides: Iterable[MarkdownSlide]) -> str:
-    return f"These are the current slides:\n{triple_quote(MarkdownSlide.render_tokens(chain(
-        *intersperse(MarkdownSlide.parser.parse("---"), [s.to_tokens() for s in slides])
-    )))}"
+    return f"These are the current slides:\n{
+        triple_quote(
+            MarkdownSlide.render_tokens(
+                chain(
+                    *intersperse(
+                        MarkdownSlide.parser.parse('---'),
+                        [s.to_tokens() for s in slides],
+                    )
+                )
+            )
+        )
+    }"

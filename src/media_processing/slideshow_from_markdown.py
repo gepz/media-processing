@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from llama_index.core.node_parser import MarkdownNodeParser
 from tap import Tap
 
-from media_processing.prompt import triple_quote
+from src.media_processing.prompt import triple_quote
 
 
 @dataclass(frozen=True)
@@ -46,9 +46,9 @@ from llama_index.core.llms import ChatMessage, ChatResponse, MessageRole
 from llama_index.llms.openrouter import OpenRouter
 from tenacity import retry, stop_after_attempt, wait_fixed
 
-import media_processing.research_article as ra
-import media_processing.slideshow.markdown_slide as ms
-import media_processing.slideshow.slide_response as sr
+import src.media_processing.research_article as ra
+import src.media_processing.slideshow.markdown_slide as ms
+import src.media_processing.slideshow.slide_response as sr
 
 # from media_processing import event_logging
 
