@@ -15,7 +15,7 @@ from mdformat.renderer import MDRenderer
 from mdit_py_plugins.front_matter import front_matter_plugin
 from more_itertools import intersperse
 
-from src.media_processing.prompt import triple_quote
+from media_processing.prompt import triple_quote
 
 
 class JsonObjectString(str):
