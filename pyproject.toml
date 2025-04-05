@@ -1,23 +1,27 @@
 [project]
 name = "media-processing"
 authors = [{name = "gepz", email = "62634767+gepz@users.noreply.github.com"}]
-dependencies = [ "faster-whisper==1.1.0", "llama-index-llms-anthropic>=0.6.3", "llama-index-llms-openrouter>=0.3.1", "llama-index-embeddings-huggingface>=0.5.0", "llama-index-embeddings-voyageai>=0.3.4", "docling>=2.7.0", "datasets>=3.1.0", "llama-index-utils-workflow>=0.3.0", "llama-index>=0.12.10", "chonkie>=0.4.1", "mdformat-simple-breaks>=0.0.1,<0.0.2", "mdformat-frontmatter>=2.0.8,<3", "rapidocr-onnxruntime>=1.4.4,<2", "ctranslate2==4.4.0", "whisperx>=3.3.1,<4"]
-description = "Add a short description here"
 requires-python = ">=3.12"
 version = "0.1.0"
+dependencies = [ "datasets", "llama-index>=0.12.23,<0.13", "llama-index-llms-anthropic>=0.6.10,<0.7", "llama-index-llms-openrouter>=0.3.1,<0.4", "llama-index-embeddings-huggingface>=0.5.2,<0.6", "llama-index-embeddings-voyageai>=0.3.5,<0.4", "mdformat-simple-breaks>=0.0.1,<0.0.2", "mdformat-frontmatter>=2.0.8,<3", "docling>=2.25.2,<3", "rapidocr-onnxruntime>=1.4.4,<2", "onnxruntime-gpu>=1.21.0,<2"]
 
 [build-system]
 build-backend = "hatchling.build"
 requires = ["hatchling"]
 
 [tool.pixi.project]
-channels = ["nvidia", "conda-forge", "pytorch"]
-platforms = ["win-64", "linux-64"]
+channels = ["nvidia", "conda-forge"]
+platforms = ["linux-64"]
 
 [tool.pixi.tasks]
 
 [tool.pixi.pypi-dependencies]
 media-processing = { path = ".", editable = true }
+
+[tool.pixi.pypi-options]
+index-url = "https://pypi.org/simple"
+extra-index-urls = ["https://download.pytorch.org/whl/cu118"]
+
 
 [tool.pixi.dependencies]
 matplotlib = ">=3.10.0,<4"
@@ -25,15 +29,11 @@ scipy = ">=1.15.1,<2"
 pandas = ">=2.2.3,<3"
 pandas-stubs = ">=2.2.3.241126,<3"
 nbformat = ">=5.10.4,<6"
-ruff = ">=0.9.1,<0.10"
+ruff = ">=0.11.4,<0.12"
 openai = ">=1.59.8,<2"
 numpy = ">=1.26.4,<2"
 seaborn = ">=0.13.2,<0.14"
 yt-dlp = ">=2025.1.15,<2026"
-torchvision = { version=">=0.20.1", channel="pytorch"}
-torchaudio = { version=">=2.5.1", channel="pytorch"}
-pytorch = { version=">=2.5.1,<3", channel="pytorch"}
-pytorch-cuda = { version="==12.1", channel="pytorch"}
 ipykernel = ">=6.29.5,<7"
 ipywidgets = ">=8.1.5,<9"
 einops = ">=0.8.0"
@@ -41,13 +41,13 @@ treelib = ">=1.7.0"
 pillow = "==10.4.0"
 scikit-posthocs = ">=0.11.1,<0.12"
 typed-argument-parser = ">=1.10.1,<2"
-pyarrow = ">=16.1.0,<17"
-transformers = ">=4.46.3,<5"
-tokenizers = ">=0.20.4,<0.21"
+pyarrow = ">=19.0.1,<20"
+tokenizers = ">=0.21.0,<0.22"
 rapidfuzz = ">=3.10.1,<4"
 regex = ">=2024.11.6,<2025"
 markdown-it-py = ">=3.0.0,<4"
 mdformat = ">=0.7.21,<0.8"
 more-itertools = ">=10.5.0,<11"
 mdit-py-plugins = ">=0.4.2,<0.5"
-tenacity = "8.*"
+stamina = ">=24.3.0,<25"
+ffmpeg = ">=7.1.1,<8"

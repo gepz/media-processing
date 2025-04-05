@@ -1,6 +1,5 @@
 # %%
 import sys
-from collections.abc import Mapping
 from dataclasses import dataclass
 
 from tap import Tap
@@ -9,21 +8,19 @@ from tap import Tap
 @dataclass(frozen=True)
 class BaseArgs:
     in_path: str
-    out_dir: str
-    out_file: str
+    out_path: str
 
 
 class MainArgs(Tap):
     in_path: str  # Path to input file
-    out_dir: str  # Directory for output files
-    out_file: str = "output.md"  # Name of output file
+    out_path: str  # Path to output file
 
 
 g_main_args = BaseArgs(
-    in_path="test/fixture/scientific_article_1.pdf",
-    out_dir="test/output",
-    out_file="output.md",
+    in_path="..//..//test/fixture/scientific_article_2.pdf",
+    out_path="..//..//test/output/output.md",
 )
+
 if __name__ == "__main__" and "ipykernel" not in sys.modules:
     g_main_args = MainArgs().parse_args()
 
@@ -37,7 +34,7 @@ from docling_core.types.doc.base import ImageRefMode
 
 
 # %%
-def markdown_from_pdf(args: BaseArgs | MainArgs) -> str:
+def markdown_from_pdf(in_path: str) -> str:
     converter = DocumentConverter(
         format_options={
             InputFormat.PDF: PdfFormatOption(
@@ -45,7 +42,7 @@ def markdown_from_pdf(args: BaseArgs | MainArgs) -> str:
             )
         }
     )
-    result = converter.convert(args.in_path)
+    result = converter.convert(in_path)
     return re.sub(
         "\r\n",
         "\n",
@@ -54,10 +51,10 @@ def markdown_from_pdf(args: BaseArgs | MainArgs) -> str:
 
 
 if __name__ == "__main__":
-    g_result = markdown_from_pdf(g_main_args)
-    g_output_path = Path(g_main_args.out_dir)
-    g_output_path.mkdir(parents=True, exist_ok=True)
-    with open(g_output_path / g_main_args.out_file, "w", encoding="utf-8") as f:
+    g_result = markdown_from_pdf(g_main_args.in_path)
+    g_output_path = Path(g_main_args.out_path)
+    g_output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(g_output_path, "w", encoding="utf-8") as f:
         f.write(g_result)
 
 # %%

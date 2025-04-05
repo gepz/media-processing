@@ -41,10 +41,14 @@ class Section:
             case _:
                 raise ValueError("Unexpected section text format.")
         match title.split():
-            case [hashes, second]:
+            case ["#" | "##" | "###", second]:
                 level, clean_title = 1, second
-            case [hashes, first, *rest] if any(char.isdigit() for char in first):
+            case ["#" | "##" | "###", first, *rest] if any(
+                char.isdigit() for char in first
+            ):
                 level, clean_title = first.count(".") + 1, " ".join(rest)
+            case ["#" | "##" | "###", *rest]:
+                level, clean_title = 1, " ".join(rest)
             case _:
                 level, clean_title = 1, title
         return cls(level=level, title=clean_title, content=content)

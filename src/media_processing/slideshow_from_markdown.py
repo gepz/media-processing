@@ -2,17 +2,13 @@
 import sys
 from dataclasses import dataclass
 
-from llama_index.core.node_parser import MarkdownNodeParser
 from tap import Tap
-
-from src.media_processing.prompt import triple_quote
 
 
 @dataclass(frozen=True)
 class BaseArgs:
     in_path: str
     out_dir: str
-    out_name: str
     example_source_path: str
     example_overview_slide_path: str
 
@@ -20,17 +16,16 @@ class BaseArgs:
 class MainArgs(Tap):
     in_path: str  # Path to input file
     out_dir: str  # Directory for output files
-    out_name: str = "output.md"  # Name of output file
     example_source_path: str  # Path to example source text
     example_overview_slide_path: str  # Path to example slide format
 
 
 g_main_args = BaseArgs(
-    in_path="test/fixture/scientific_article_markdown_2.md",
-    example_source_path="test/fixture/scientific_article_markdown_1.md",
-    example_overview_slide_path="test/fixture/markdown_to_slideshow/scientific_article_1_overview_slide.md",
-    out_dir="test/output",
-    out_name="output.md",
+    in_path="..//..//test/output/vreed/output.md",
+    # in_path="..//..//test/fixture/scientific_article_markdown_2.md",
+    example_source_path="..//..//test/fixture/scientific_article_markdown_1.md",
+    example_overview_slide_path="..//..//test/fixture/markdown_to_slideshow/scientific_article_1_overview_slide.md",
+    out_dir="..//..//test/output",
 )
 if __name__ == "__main__" and "ipykernel" not in sys.modules:
     g_main_args = MainArgs().parse_args()
@@ -41,14 +36,16 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any, cast
 
+import stamina
 from llama_index.core import SimpleDirectoryReader
-from llama_index.core.llms import ChatMessage, ChatResponse, MessageRole
+from llama_index.core.llms import LLM, ChatMessage, ChatResponse, MessageRole
+from llama_index.core.node_parser import MarkdownNodeParser
 from llama_index.llms.openrouter import OpenRouter
-from tenacity import retry, stop_after_attempt, wait_fixed
 
-import src.media_processing.research_article as ra
-import src.media_processing.slideshow.markdown_slide as ms
-import src.media_processing.slideshow.slide_response as sr
+import media_processing.research_article as ra
+import media_processing.slideshow.markdown_slide as ms
+import media_processing.slideshow.slide_response as sr
+from media_processing.prompt import triple_quote
 
 # from media_processing import event_logging
 
@@ -65,7 +62,7 @@ def get_response_content(res: ChatResponse):
         if hasattr(choice, "error"):
             raise ValueError(choice.error)
     if res.message.content is None:
-        raise ValueError("message is None")
+        raise ValueError("respond message is None")
     return res.message.content
 
 
@@ -137,15 +134,13 @@ def create_next_slide_context(
     source: str,
 ) -> list[ChatMessage]:
     source_context = source_context_prompt(source)
-    next_slide_prompt = """Write the single next slide. The slide content should be brief. The speaker notes should reference the slide content, not the slide itself, without adding introductory or concluding remarks. At the end of the speaker notes, write down:
-1. The start and end of the range of text referenced (in JSON format)
-
-JSON Format:
+    next_slide_prompt = """Write the single next slide. The slide content should be brief. The speaker notes should reference the slide content, not the slide itself, without adding introductory or concluding remarks. At the end of the speaker notes, before closing the bracket, write down:
+1. The start and end of the range of text referenced in the following JSON format:
 {
     "start": "Start of a sentence...",
     "end": "...end of a sentence.",
 }
-Stop output after the JSON.
+Stop the output after closing the speaker notes.  
 Following the text in chronological order. Do not skip any part."""
     condensed_slides_prompt = ms.slides_to_context_prompt(
         condense_existing_slides(existing_slides)
@@ -241,6 +236,11 @@ class SourceTracker:
         return "".join(result)
 
 
+@stamina.retry(on=ValueError, attempts=3)
+def chat_with_retry(llm: LLM, messages: Sequence[ChatMessage]):
+    return get_response_content(llm.chat(messages))
+
+
 def slideshow_from_markdown(args: BaseArgs | MainArgs) -> str:
     api_key = os.environ["OPENROUTER_API_KEY"]
     # llm_smart = OpenRouter(
@@ -301,13 +301,9 @@ def slideshow_from_markdown(args: BaseArgs | MainArgs) -> str:
         ),
     )
 
-    @retry(wait=wait_fixed(10), stop=(stop_after_attempt(3)))
-    def get_content_with_retry():
-        return get_response_content(
-            llm_smartest.chat([system_prompt, overview_request])
-        )
-
-    overview_slide_response = sr.SlideResponse.from_markdown(get_content_with_retry())
+    overview_slide_response = sr.SlideResponse.from_markdown(
+        chat_with_retry(llm_smartest, [system_prompt, overview_request])
+    )
 
     next_section_index = next(
         i
@@ -340,7 +336,7 @@ def slideshow_from_markdown(args: BaseArgs | MainArgs) -> str:
             source=ra.markdown_from_sections(old_source_sections + new_source_sections),
         )
         next_slide = sr.SlideResponse.from_markdown(
-            get_response_content(llm_smartest.chat(next_slide_context))
+            chat_with_retry(llm_smartest, next_slide_context)
         )
 
         existing_slides.append(ContentSlide(slide=next_slide.slide))
@@ -349,7 +345,7 @@ def slideshow_from_markdown(args: BaseArgs | MainArgs) -> str:
         print("slide_status:", next_slide.reference_status)
 
         if next_slide.reference_status is None:
-            raise ValueError("LLM did not respnod with reference status Json")
+            raise ValueError("LLM did not respond with reference status Json")
         source_end_text = ra.markdown_from_sections(new_source_sections)[-1000:]
         stripped_end_status = next_slide.reference_status.end.strip(".")[-300:]
         # if stripped_end_status not in source_end_text:
@@ -391,7 +387,7 @@ if __name__ == "__main__":
     result = slideshow_from_markdown(g_main_args)
     out_dir = Path(g_main_args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    with open(out_dir / g_main_args.out_name, "w", encoding="utf-8") as f:
+    with open(out_dir / "output.md", "w", encoding="utf-8") as f:
         f.write(result)
 
 # %%
