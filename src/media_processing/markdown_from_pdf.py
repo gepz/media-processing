@@ -17,8 +17,8 @@ class MainArgs(Tap):
 
 
 g_main_args = BaseArgs(
-    in_path="..//..//test/fixture/scientific_article_2.pdf",
-    out_path="..//..//test/output/output.md",
+    in_path="../../test/fixture/scientific_article_2.pdf",
+    out_path="../../test/output/output.md",
 )
 
 if __name__ == "__main__" and "ipykernel" not in sys.modules:

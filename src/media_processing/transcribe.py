@@ -37,8 +37,8 @@ class MainArgs(Tap):
 
 
 g_main_args = BaseArgs(
-    in_path="..//..//test/fixture/audio.mp3",
-    out_path="..//..//test/output/transcript.txt",
+    in_path="../../test/fixture/audio.mp3",
+    out_path="../../test/output/transcript.txt",
     model="whisper-1",
     language=None,
     prompt=None,

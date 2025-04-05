@@ -21,11 +21,11 @@ class MainArgs(Tap):
 
 
 g_main_args = BaseArgs(
-    in_path="..//..//test/output/vreed/output.md",
-    # in_path="..//..//test/fixture/scientific_article_markdown_2.md",
-    example_source_path="..//..//test/fixture/scientific_article_markdown_1.md",
-    example_overview_slide_path="..//..//test/fixture/markdown_to_slideshow/scientific_article_1_overview_slide.md",
-    out_dir="..//..//test/output",
+    in_path="../../test/output/vreed/output.md",
+    # in_path="../../test/fixture/scientific_article_markdown_2.md",
+    example_source_path="../../test/fixture/scientific_article_markdown_1.md",
+    example_overview_slide_path="../../test/fixture/markdown_to_slideshow/scientific_article_1_overview_slide.md",
+    out_dir="../../test/output",
 )
 if __name__ == "__main__" and "ipykernel" not in sys.modules:
     g_main_args = MainArgs().parse_args()

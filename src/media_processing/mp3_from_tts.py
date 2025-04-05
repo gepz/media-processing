@@ -36,8 +36,8 @@ class MainArgs(Tap):
 
 
 g_main_args = BaseArgs(
-    in_path="..//..//test/fixture/sentence.txt",
-    out_path="..//..//test/output/speech.mp3",
+    in_path="../../test/fixture/sentence.txt",
+    out_path="../../test/output/speech.mp3",
     model="kokoro",
     voice="af_sarah",
     speed=1.0,
