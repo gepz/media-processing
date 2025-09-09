@@ -16,7 +16,6 @@ class BaseArgs:
 
 
 def validate_mp3_suffix(path: str) -> str:
-    """Validate that the output path has an .mp3 suffix or raise an error."""
     if not path.lower().endswith(".mp3"):
         raise ValueError(f"Output path must have .mp3 suffix, got: {path}")
     return path

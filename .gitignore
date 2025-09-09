@@ -2,6 +2,7 @@
 .vscode/
 **/test/fixture/
 **/test/output/
+**/test/input/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -17,7 +17,6 @@ class BaseArgs:
 
 
 def validate_txt_suffix(path: str) -> str:
-    """Validate that the output path has a .txt suffix or raise an error."""
     if not path.lower().endswith(".txt"):
         raise ValueError(f"Output path must have .txt suffix, got: {path}")
     return path
